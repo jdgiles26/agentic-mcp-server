@@ -1,77 +1,92 @@
 # PromptForge
 
-A web app that rewrites coding-assistant prompts using strategies from
+Rewrites coding-assistant prompts using strategies from
 [awesome-agentic-patterns](https://github.com/nibzard/awesome-agentic-patterns).
+Paste a prompt, PromptForge classifies the task, selects relevant agentic patterns,
+and asks your configured LLM to produce a sharper, structured rewrite.
 
-You paste the prompt you would normally send to Claude, Cursor, Aider, or any
-agentic coding tool. PromptForge classifies the task, picks the most relevant
-agentic patterns from the catalog, and uses your configured LLM (local or
-cloud) to produce a sharper, more structured rewrite that you can copy back
-into your assistant of choice.
+Available as a **web app** *and* an **MCP server** (stdio + HTTP), so the same
+enhancer pipeline can be called from a browser or from Claude Desktop / Claude Code.
 
-| Local providers          | Cloud providers     |
-| ------------------------ | ------------------- |
-| Ollama (port 11434)      | OpenAI API          |
-| Lemonade.app (port 13305)| Anthropic API       |
-| llama.cpp server (port 8080) |                 |
+| Local providers              | Cloud providers   |
+| ---------------------------- | ----------------- |
+| Ollama (port 11434)          | OpenAI API        |
+| Lemonade.app (port 13305)    | Anthropic API     |
+| llama.cpp server (port 8080) |                   |
 
-## TL;DR — running it locally
+## Run
 
 ```bash
 pnpm install
-pnpm dev          # http://localhost:3000
+pnpm test           # 90 tests, hermetic (no live LLM required)
+pnpm typecheck
+
+# Web app
+pnpm --filter @prompt-forge/web dev    # http://localhost:3000
+
+# MCP server — HTTP (default port 8787)
+pnpm --filter @prompt-forge/mcp start:http
+
+# MCP server — stdio (for Claude Desktop / Claude Code)
+pnpm --filter @prompt-forge/mcp start:stdio
 ```
 
-Open [http://localhost:3000/settings](http://localhost:3000/settings) and
-configure at least one provider. Click **Test connection** to verify it is
-reachable. Then go back to `/`, paste a prompt, and submit.
+## MCP usage
+
+The MCP server exposes one tool: **`enhance_prompt`**. Provider config is passed
+per-call (no server-side keys), so you can drive any provider from any client.
+
+### Claude Code / Desktop (stdio)
+
+```json
+{
+  "mcpServers": {
+    "promptforge": {
+      "command": "pnpm",
+      "args": ["--filter", "@prompt-forge/mcp", "exec", "tsx", "src/stdio.ts"],
+      "cwd": "/absolute/path/to/this/repo"
+    }
+  }
+}
+```
+
+### HTTP (curl example)
+
+```bash
+curl -s -X POST http://127.0.0.1:8787/mcp \
+  -H 'content-type: application/json' \
+  -d '{
+    "jsonrpc":"2.0","id":1,"method":"tools/call",
+    "params":{
+      "name":"enhance_prompt",
+      "arguments":{
+        "rawPrompt":"refactor the auth module to use hooks",
+        "reflect":true,
+        "provider":{"kind":"ollama","baseUrl":"http://localhost:11434","model":"llama3.1:8b"}
+      }
+    }
+  }'
+```
 
 ## Repo layout
 
 ```
 prompt-forge/
 ├── apps/
-│   └── web/                 Next.js 15 app (App Router, RSC default)
+│   ├── web/        Next.js 15 app (form + /api/enhance)
+│   └── mcp/        MCP server — JSON-RPC handler, stdio + HTTP transports
 ├── packages/
-│   ├── core/                Result type, AppError, schemas, structured logger
-│   ├── patterns/            Catalog of 22 agentic patterns + classifier + selector
-│   ├── providers/           Ollama, Lemonade, llama.cpp, OpenAI, Anthropic clients
-│   ├── config/              AppConfig + storage adapters (memory / localStorage)
-│   └── enhancer/            Pipeline that ties classifier → selector → provider
-├── docs/
-│   ├── architecture.md
-│   ├── packages.md
-│   ├── providers.md
-│   ├── patterns.md
-│   ├── tdd-strategy.md
-│   └── development.md
-├── Makefile
-├── biome.json
-├── tsconfig.base.json
-├── pnpm-workspace.yaml
-└── package.json
+│   ├── core/       Result type, AppError, Zod schemas
+│   ├── patterns/   Catalog + heuristic classifier + selector
+│   ├── providers/  ProviderClient interface + Ollama + OpenAI-compatible
+│   └── enhancer/   Pipeline: classify → select → chat (→ reflect) → extract
+└── docs/           Architecture, packages, providers, patterns, TDD strategy
 ```
 
-## Development commands
-
-| Command            | What it does                                        |
-| ------------------ | --------------------------------------------------- |
-| `make install`     | `pnpm install`                                      |
-| `make dev`         | Start the Next.js dev server                        |
-| `make test`        | Run every package's vitest suite                    |
-| `make typecheck`   | `tsc --noEmit` across the monorepo                  |
-| `make lint`        | Biome lint + format check                           |
-| `make build`       | Build all packages and the web app                  |
-| `make ci`          | Everything above, in order                          |
-
-## Documentation
-
-- [Architecture](./docs/architecture.md) — how the packages compose
-- [Packages](./docs/packages.md) — purpose, public API, and tests for each package
-- [Providers](./docs/providers.md) — endpoint defaults, auth, and protocol notes
-- [Patterns](./docs/patterns.md) — how the catalog drives the rewrite
-- [TDD strategy](./docs/tdd-strategy.md) — what we test, what we don't, and why
-- [Development](./docs/development.md) — onboarding, conventions, release flow
+This is a vertical slice of the full design in `docs/`. Anthropic native client,
+llama.cpp-specific tuning, multi-pattern catalog (22 entries), config persistence,
+and a richer `/settings` page can be added incrementally — each follows the same
+TDD loop documented in [`docs/tdd-strategy.md`](./docs/tdd-strategy.md).
 
 ## License
 
