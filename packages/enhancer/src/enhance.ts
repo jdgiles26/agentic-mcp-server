@@ -38,6 +38,7 @@ export const enhance = async (
       taskKind,
       patterns,
     }),
+    ...(req.temperature !== undefined ? { temperature: req.temperature } : {}),
   });
   if (!draftRes.ok) return draftRes;
   const draft = extractRewrittenPrompt(draftRes.value.content);
@@ -52,6 +53,7 @@ export const enhance = async (
         draft,
         taskKind,
       }),
+      ...(req.temperature !== undefined ? { temperature: req.temperature } : {}),
     });
     if (reflectRes.ok) {
       const revised = extractRewrittenPrompt(reflectRes.value.content);

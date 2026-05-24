@@ -58,6 +58,7 @@ const TOOLS = [
         pinnedSlugs: { type: "array", items: { type: "string" } },
         excludedSlugs: { type: "array", items: { type: "string" } },
         reflect: { type: "boolean" },
+        temperature: { type: "number", minimum: 0, maximum: 2 },
         provider: {
           type: "object",
           properties: {

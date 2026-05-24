@@ -43,7 +43,8 @@ export const handleEnhanceRequest = async (
         : result.error.code === "VALIDATION"
           ? 400
           : 500;
-    return json(status, { error: result.error });
+    const { code, message } = result.error;
+    return json(status, { error: { code, message } });
   }
   return json(200, result.value);
 };

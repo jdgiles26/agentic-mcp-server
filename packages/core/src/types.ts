@@ -99,6 +99,7 @@ export const EnhancementRequestSchema = z.object({
   pinnedSlugs: z.array(z.string()).optional(),
   excludedSlugs: z.array(z.string()).optional(),
   reflect: z.boolean().optional(),
+  temperature: z.number().min(0).max(2).optional(),
 });
 export type EnhancementRequest = z.infer<typeof EnhancementRequestSchema>;
 
