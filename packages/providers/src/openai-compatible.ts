@@ -1,4 +1,5 @@
 import {
+  type AppError,
   appError,
   type ChatRequest,
   type ChatResponse,
@@ -6,7 +7,6 @@ import {
   ok,
   type ProviderConfig,
   type Result,
-  type AppError,
 } from "@prompt-forge/core";
 import type { ProviderClient } from "./client.js";
 import { type FetchImpl, requestJson } from "./http.js";
@@ -39,10 +39,7 @@ export const createOpenAICompatibleClient = (
   opts: OpenAICompatibleOptions = {},
 ): ProviderClient => {
   const fetchImpl = opts.fetchImpl ?? globalThis.fetch;
-  if (
-    (config.kind === "openai" || config.kind === "anthropic") &&
-    !config.apiKey
-  ) {
+  if ((config.kind === "openai" || config.kind === "anthropic") && !config.apiKey) {
     return {
       chat: async (): Promise<Result<ChatResponse, AppError>> =>
         err(appError("CONFIG_MISSING", `${config.kind} requires an apiKey`)),

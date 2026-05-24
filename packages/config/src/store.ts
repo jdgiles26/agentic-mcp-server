@@ -1,12 +1,12 @@
 import {
+  type AppError,
   appError,
   err,
   ok,
-  ProviderConfigSchema,
-  ProviderKindSchema,
-  type AppError,
   type ProviderConfig,
+  ProviderConfigSchema,
   type ProviderKind,
+  ProviderKindSchema,
   type Result,
 } from "@prompt-forge/core";
 import { z } from "zod";
@@ -31,10 +31,7 @@ const cloneConfig = (c: AppConfig): AppConfig => ({
   activeProvider: c.activeProvider,
 });
 
-export const upsertProvider = (
-  c: AppConfig,
-  p: ProviderConfig,
-): AppConfig => {
+export const upsertProvider = (c: AppConfig, p: ProviderConfig): AppConfig => {
   const next = cloneConfig(c);
   next.providers[p.kind] = p;
   if (next.activeProvider === null) {
@@ -43,10 +40,7 @@ export const upsertProvider = (
   return next;
 };
 
-export const removeProvider = (
-  c: AppConfig,
-  kind: ProviderKind,
-): AppConfig => {
+export const removeProvider = (c: AppConfig, kind: ProviderKind): AppConfig => {
   const next = cloneConfig(c);
   delete next.providers[kind];
   if (next.activeProvider === kind) {
@@ -56,19 +50,14 @@ export const removeProvider = (
   return next;
 };
 
-export const setActiveProvider = (
-  c: AppConfig,
-  kind: ProviderKind,
-): AppConfig => {
+export const setActiveProvider = (c: AppConfig, kind: ProviderKind): AppConfig => {
   if (!(kind in c.providers)) return c;
   const next = cloneConfig(c);
   next.activeProvider = kind;
   return next;
 };
 
-export const getActiveProviderConfig = (
-  c: AppConfig,
-): ProviderConfig | null => {
+export const getActiveProviderConfig = (c: AppConfig): ProviderConfig | null => {
   if (c.activeProvider === null) return null;
   const found = c.providers[c.activeProvider];
   return found ?? null;

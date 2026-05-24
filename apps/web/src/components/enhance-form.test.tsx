@@ -1,6 +1,7 @@
 // @vitest-environment happy-dom
-import { describe, expect, it, beforeEach, vi, afterEach } from "vitest";
-import { render, screen, fireEvent, waitFor, cleanup } from "@testing-library/react";
+
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { EnhanceForm } from "./enhance-form.js";
 
 const STORAGE_KEY = "promptforge:config";
@@ -33,9 +34,7 @@ describe("<EnhanceForm />", () => {
   it("renders 'Configure a provider in /settings first' when localStorage is empty", async () => {
     render(<EnhanceForm />);
     await waitFor(() => {
-      expect(
-        screen.getByText(/Configure a provider in \/settings first/i),
-      ).toBeTruthy();
+      expect(screen.getByText(/Configure a provider in \/settings first/i)).toBeTruthy();
     });
     // Should link to settings
     const link = screen.getByRole("link", { name: /settings/i });

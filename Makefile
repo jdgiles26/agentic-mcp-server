@@ -1,4 +1,4 @@
-.PHONY: install dev dev-mcp-http dev-mcp-stdio test typecheck lint format build clean ci
+.PHONY: install dev dev-mcp-http dev-mcp-stdio test test-live test-e2e test-e2e-install typecheck lint format build clean ci
 
 install:
 	pnpm install
@@ -15,6 +15,15 @@ dev-mcp-stdio:
 test:
 	pnpm -r --workspace-concurrency=1 test
 
+test-live:
+	pnpm --filter @prompt-forge/providers test:live
+
+test-e2e-install:
+	pnpm --filter @prompt-forge/web test:e2e:install
+
+test-e2e:
+	pnpm --filter @prompt-forge/web test:e2e
+
 typecheck:
 	pnpm -r typecheck
 
@@ -28,6 +37,6 @@ build:
 	pnpm -r build
 
 clean:
-	find . -type d \( -name node_modules -o -name dist -o -name .next -o -name coverage \) -prune -exec rm -rf {} +
+	find . -type d \( -name node_modules -o -name dist -o -name .next -o -name coverage -o -name test-results -o -name playwright-report \) -prune -exec rm -rf {} +
 
 ci: install typecheck lint test build

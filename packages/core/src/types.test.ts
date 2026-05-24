@@ -129,15 +129,7 @@ describe("PatternSchema", () => {
 
 describe("TaskKindSchema", () => {
   it("accepts canonical task kinds", () => {
-    for (const k of [
-      "feature",
-      "bug",
-      "refactor",
-      "test",
-      "docs",
-      "review",
-      "unknown",
-    ]) {
+    for (const k of ["feature", "bug", "refactor", "test", "docs", "review", "unknown"]) {
       expect(TaskKindSchema.safeParse(k).success).toBe(true);
     }
   });

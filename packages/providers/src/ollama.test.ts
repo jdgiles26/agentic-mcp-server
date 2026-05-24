@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createOllamaClient } from "./ollama.js";
-import { scriptedFetch, jsonResponse } from "./test-fixtures.js";
+import { jsonResponse, scriptedFetch } from "./test-fixtures.js";
 
 describe("Ollama client", () => {
   it("POSTs to /api/chat with stream:false and maps eval_count", async () => {

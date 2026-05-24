@@ -29,9 +29,8 @@ const redact = (value: unknown): unknown => {
   return value;
 };
 
-const redactRecord = (
-  record: Record<string, unknown>,
-): Record<string, unknown> => redact(record) as Record<string, unknown>;
+const redactRecord = (record: Record<string, unknown>): Record<string, unknown> =>
+  redact(record) as Record<string, unknown>;
 
 const streamFor = (level: LogLevel): NodeJS.WriteStream =>
   level === "warn" || level === "error" ? process.stderr : process.stdout;
@@ -56,10 +55,7 @@ const emit = (
   streamFor(level).write(`${JSON.stringify(entry)}\n`);
 };
 
-export const createLogger = (
-  scope: string,
-  bindings: Record<string, unknown> = {},
-): Logger => {
+export const createLogger = (scope: string, bindings: Record<string, unknown> = {}): Logger => {
   const make = (currentBindings: Record<string, unknown>): Logger => ({
     info: (msg, fields) => emit("info", scope, currentBindings, msg, fields),
     warn: (msg, fields) => emit("warn", scope, currentBindings, msg, fields),

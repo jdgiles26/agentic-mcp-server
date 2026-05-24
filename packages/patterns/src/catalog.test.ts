@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { PATTERN_CATALOG, findPatternBySlug, allPatterns } from "./index.js";
+import { allPatterns, findPatternBySlug, PATTERN_CATALOG } from "./index.js";
 
 describe("PATTERN_CATALOG invariants", () => {
   it("has at least 22 entries (full catalog)", () => {

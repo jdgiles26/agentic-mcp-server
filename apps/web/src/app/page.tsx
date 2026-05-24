@@ -5,8 +5,8 @@ export default function Home() {
     <main>
       <h1>PromptForge</h1>
       <p className="tagline">
-        Paste a coding-assistant prompt. PromptForge classifies it, selects agentic patterns,
-        and asks your configured LLM to rewrite it.
+        Paste a coding-assistant prompt. PromptForge classifies it, selects agentic patterns, and
+        asks your configured LLM to rewrite it.
       </p>
       <EnhanceForm />
     </main>

@@ -1,6 +1,6 @@
 import {
-  appError,
   type AppError,
+  appError,
   type ChatMessage,
   type ChatRequest,
   type ChatResponse,
@@ -81,9 +81,7 @@ export const createAnthropicClient = (
         return err(appError("PROVIDER_BAD_RESPONSE", "empty content from anthropic"));
       }
       if (first.type !== "text" || typeof first.text !== "string") {
-        return err(
-          appError("PROVIDER_BAD_RESPONSE", "non-text content block from anthropic"),
-        );
+        return err(appError("PROVIDER_BAD_RESPONSE", "non-text content block from anthropic"));
       }
       const firstText: string = first.text;
       const usage = r.value.usage

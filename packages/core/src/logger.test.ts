@@ -8,18 +8,14 @@ const setupCapture = (): {
   restore: () => void;
 } => {
   const captured: Captured[] = [];
-  const stdoutSpy = vi
-    .spyOn(process.stdout, "write")
-    .mockImplementation((chunk: unknown) => {
-      captured.push({ stream: "stdout", line: String(chunk) });
-      return true;
-    });
-  const stderrSpy = vi
-    .spyOn(process.stderr, "write")
-    .mockImplementation((chunk: unknown) => {
-      captured.push({ stream: "stderr", line: String(chunk) });
-      return true;
-    });
+  const stdoutSpy = vi.spyOn(process.stdout, "write").mockImplementation((chunk: unknown) => {
+    captured.push({ stream: "stdout", line: String(chunk) });
+    return true;
+  });
+  const stderrSpy = vi.spyOn(process.stderr, "write").mockImplementation((chunk: unknown) => {
+    captured.push({ stream: "stderr", line: String(chunk) });
+    return true;
+  });
   return {
     captured,
     restore: () => {

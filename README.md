@@ -85,6 +85,9 @@ HTTP behavior:
 - `OPTIONS /mcp` returns CORS preflight (origin: `*` by default)
 - POST body limit: 256 KiB (returns 413 on overflow)
 - Notifications (no `id`) return 204 with empty body
+- **Streamable HTTP (MCP 2025-03-26 spec)**: POST with `Accept: text/event-stream` returns the response as a single SSE event. GET `/mcp` with the same Accept header opens an SSE channel with a `Mcp-Session-Id` header and keep-alives (default 15 s).
+- **Bearer auth** (optional): set `PROMPTFORGE_MCP_TOKEN=<secret>` to require `Authorization: Bearer <secret>` on all POST/GET requests. Without the env var, no auth is required (back-compat). OPTIONS preflight is never gated.
+- **Bind address**: set `HOST=0.0.0.0` to expose on the LAN. **Never do that without `PROMPTFORGE_MCP_TOKEN` set.**
 
 ### MCP server — stdio (Claude Desktop / Claude Code)
 
@@ -156,13 +159,36 @@ Each of the 22 catalog patterns is exposed at
 | `make dev` | Start the Next.js web app on :3000 |
 | `make dev-mcp-http` | Start MCP HTTP transport on :8787 |
 | `make dev-mcp-stdio` | Start MCP stdio transport |
-| `make test` | Run every package's vitest suite |
+| `make test` | Run every package's vitest suite (hermetic) |
+| `make test-live` | Env-gated tests against real LLMs (see below) |
+| `make test-e2e-install` | Install Playwright's chromium binary (one time) |
+| `make test-e2e` | Run Playwright e2e against the built web app |
 | `make typecheck` | `tsc --noEmit` across the workspace |
 | `make build` | Build all packages and the web app |
 | `make lint` | `biome check .` |
 | `make format` | `biome format --write .` |
-| `make clean` | Wipe node_modules / dist / .next / coverage |
+| `make clean` | Wipe node_modules / dist / .next / coverage / test-results |
 | `make ci` | install + typecheck + lint + test + build |
+
+### Live provider tests
+
+```bash
+LIVE_OLLAMA=1 make test-live
+LIVE_OPENAI=1 OPENAI_API_KEY=sk-... make test-live
+LIVE_ANTHROPIC=1 ANTHROPIC_API_KEY=sk-ant-... make test-live
+```
+
+Skipped silently when the matching `LIVE_*` env var is unset, so `make test` stays hermetic.
+
+### E2E tests
+
+```bash
+make test-e2e-install    # one time: pulls Playwright's chromium binary
+make build               # e2e runs against the production build
+make test-e2e
+```
+
+4 happy-path tests covering home, form gating, end-to-end rewrite (mocked `/api/enhance`), and the settings page.
 
 ## Repo layout
 

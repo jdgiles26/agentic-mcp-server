@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createAnthropicClient } from "./anthropic.js";
-import { scriptedFetch, jsonResponse } from "./test-fixtures.js";
+import { jsonResponse, scriptedFetch } from "./test-fixtures.js";
 
 describe("Anthropic native client", () => {
   it("POSTs to /v1/messages with anthropic headers", async () => {
@@ -49,7 +49,9 @@ describe("Anthropic native client", () => {
   });
 
   it("concatenates system messages and filters them from messages", async () => {
-    let seenBody: { system?: string; messages: Array<{ role: string; content: string }> } | undefined;
+    let seenBody:
+      | { system?: string; messages: Array<{ role: string; content: string }> }
+      | undefined;
     const fetchImpl = scriptedFetch(async (req) => {
       seenBody = (await req.json()) as typeof seenBody;
       return jsonResponse({
@@ -225,11 +227,12 @@ describe("Anthropic native client", () => {
   });
 
   it("maps 401 to PROVIDER_AUTH", async () => {
-    const fetchImpl = scriptedFetch(async () =>
-      new Response(JSON.stringify({ error: "nope" }), {
-        status: 401,
-        headers: { "content-type": "application/json" },
-      }),
+    const fetchImpl = scriptedFetch(
+      async () =>
+        new Response(JSON.stringify({ error: "nope" }), {
+          status: 401,
+          headers: { "content-type": "application/json" },
+        }),
     );
     const client = createAnthropicClient(
       {

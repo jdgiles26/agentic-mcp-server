@@ -1,12 +1,12 @@
 "use client";
 
-import { useEffect, useState, type FormEvent } from "react";
 import {
+  type AppConfig,
   createLocalStorageStore,
   getActiveProviderConfig,
-  type AppConfig,
 } from "@prompt-forge/config";
 import type { ProviderConfig } from "@prompt-forge/core";
+import { type FormEvent, useEffect, useState } from "react";
 
 type EnhanceResult = {
   rewrittenPrompt: string;
@@ -42,9 +42,7 @@ export function EnhanceForm() {
     // changes made in another tab are picked up without a refresh.
     const store = createLocalStorageStore(window.localStorage);
     const loaded = store.load();
-    const provider = loaded.ok
-      ? getActiveProviderConfig(loaded.value as AppConfig)
-      : null;
+    const provider = loaded.ok ? getActiveProviderConfig(loaded.value as AppConfig) : null;
     if (!provider) {
       setActiveProvider(null);
       return;
@@ -84,8 +82,7 @@ export function EnhanceForm() {
     return (
       <div className="section">
         <p>
-          Configure a provider in /settings first.{" "}
-          <a href="/settings">Open settings</a>.
+          Configure a provider in /settings first. <a href="/settings">Open settings</a>.
         </p>
       </div>
     );
@@ -105,16 +102,11 @@ export function EnhanceForm() {
 
       <div className="section">
         <div className="tags">
-          Provider: {activeProvider.kind} · {activeProvider.model} · base{" "}
-          {activeProvider.baseUrl} ·{" "}
+          Provider: {activeProvider.kind} · {activeProvider.model} · base {activeProvider.baseUrl} ·{" "}
           <a href="/settings">Change in Settings</a>
         </div>
         <label>
-          <input
-            type="checkbox"
-            checked={reflect}
-            onChange={(e) => setReflect(e.target.checked)}
-          />{" "}
+          <input type="checkbox" checked={reflect} onChange={(e) => setReflect(e.target.checked)} />{" "}
           Run reflection pass (second LLM call)
         </label>
       </div>
@@ -134,9 +126,8 @@ export function EnhanceForm() {
       {result && (
         <div className="section">
           <div className="tags">
-            taskKind: {result.taskKind} · patterns:{" "}
-            {result.selectedPatterns.join(", ")} · reflected:{" "}
-            {String(result.reflected)}
+            taskKind: {result.taskKind} · patterns: {result.selectedPatterns.join(", ")} ·
+            reflected: {String(result.reflected)}
           </div>
           <pre>{result.rewrittenPrompt}</pre>
         </div>

@@ -1,6 +1,6 @@
-import { describe, expect, it } from "vitest";
 import { ok } from "@prompt-forge/core";
 import type { ProviderClient } from "@prompt-forge/providers";
+import { describe, expect, it } from "vitest";
 import { handleProviderTestRequest } from "./handler.js";
 
 const okStub = (
@@ -49,10 +49,7 @@ describe("POST /api/providers/test handler", () => {
         },
       }),
     });
-    const r = await handleProviderTestRequest(
-      req,
-      () => okStub("pong", { completionTokens: 4 }),
-    );
+    const r = await handleProviderTestRequest(req, () => okStub("pong", { completionTokens: 4 }));
     expect(r.status).toBe(200);
     const body = (await r.json()) as any;
     expect(body.ok).toBe(true);

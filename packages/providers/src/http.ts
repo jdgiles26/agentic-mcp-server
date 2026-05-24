@@ -1,4 +1,4 @@
-import { appError, type AppError, err, ok, type Result } from "@prompt-forge/core";
+import { type AppError, appError, err, ok, type Result } from "@prompt-forge/core";
 
 const DEFAULT_TIMEOUT_MS = 60_000;
 
@@ -33,7 +33,11 @@ export const requestJson = async <T = unknown>(
       signal: controller.signal,
     });
     if (!res.ok) {
-      return err(appError(statusToCode(res.status), `HTTP ${res.status}`, { details: { status: res.status } }));
+      return err(
+        appError(statusToCode(res.status), `HTTP ${res.status}`, {
+          details: { status: res.status },
+        }),
+      );
     }
     const ct = res.headers.get("content-type") ?? "";
     if (!ct.includes("application/json")) {
@@ -48,7 +52,11 @@ export const requestJson = async <T = unknown>(
     if (e instanceof TypeError) {
       return err(appError("PROVIDER_UNREACHABLE", e.message, { cause: e }));
     }
-    return err(appError("PROVIDER_BAD_RESPONSE", e instanceof Error ? e.message : "unknown error", { cause: e }));
+    return err(
+      appError("PROVIDER_BAD_RESPONSE", e instanceof Error ? e.message : "unknown error", {
+        cause: e,
+      }),
+    );
   } finally {
     clearTimeout(timeout);
   }

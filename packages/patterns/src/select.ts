@@ -1,5 +1,5 @@
 import type { Pattern, TaskKind } from "@prompt-forge/core";
-import { PATTERN_CATALOG, findPatternBySlug } from "./catalog.js";
+import { findPatternBySlug, PATTERN_CATALOG } from "./catalog.js";
 
 export type SelectOptions = {
   maxPatterns?: number;
@@ -9,7 +9,8 @@ export type SelectOptions = {
 
 const DEFAULT_MAX = 3;
 
-const wordRe = (kw: string) => new RegExp(`\\b${kw.replace(/[.*+?^${}()|[\\\\]\\\\]/g, "\\\\$&")}\\b`, "i");
+const wordRe = (kw: string) =>
+  new RegExp(`\\b${kw.replace(/[.*+?^${}()|[\\\\]\\\\]/g, "\\\\$&")}\\b`, "i");
 
 const scorePattern = (p: Pattern, text: string, taskKind: TaskKind): number => {
   let score = 0;
@@ -35,9 +36,7 @@ export const selectPatterns = (
     .filter((p): p is Pattern => !!p && !excluded.has(p.slug));
 
   const seen = new Set<string>(pinned.map((p) => p.slug));
-  const candidates = PATTERN_CATALOG.filter(
-    (p) => !excluded.has(p.slug) && !seen.has(p.slug),
-  );
+  const candidates = PATTERN_CATALOG.filter((p) => !excluded.has(p.slug) && !seen.has(p.slug));
 
   const scored = candidates
     .map((p, idx) => ({ p, score: scorePattern(p, rawPrompt, taskKind), idx }))

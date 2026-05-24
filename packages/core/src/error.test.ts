@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { appError, AppErrorCode } from "./error.js";
+import { AppErrorCode, appError } from "./error.js";
 
 describe("appError", () => {
   it("constructs with code and message", () => {

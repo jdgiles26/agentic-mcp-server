@@ -1,7 +1,7 @@
-import { describe, expect, it } from "vitest";
 import { Readable, Writable } from "node:stream";
 import { ok } from "@prompt-forge/core";
 import type { ProviderClient } from "@prompt-forge/providers";
+import { describe, expect, it } from "vitest";
 import { runStdioServer } from "./stdio.js";
 
 const stubProvider = (content: string): ProviderClient => ({
@@ -33,7 +33,11 @@ describe("stdio transport", () => {
       stdout: out.stream,
       providerClientFactory: () => stubProvider("```prompt\nx\n```"),
     });
-    const lines = out.chunks.join("").trim().split("\n").map((l) => JSON.parse(l));
+    const lines = out.chunks
+      .join("")
+      .trim()
+      .split("\n")
+      .map((l) => JSON.parse(l));
     expect(lines).toHaveLength(2);
     expect(lines[0].id).toBe(1);
     expect(lines[0].result.tools[0].name).toBe("enhance_prompt");
@@ -52,7 +56,12 @@ describe("stdio transport", () => {
       stdout: out.stream,
       providerClientFactory: () => stubProvider("x"),
     });
-    const lines = out.chunks.join("").trim().split("\n").filter(Boolean).map((l) => JSON.parse(l));
+    const lines = out.chunks
+      .join("")
+      .trim()
+      .split("\n")
+      .filter(Boolean)
+      .map((l) => JSON.parse(l));
     expect(lines).toHaveLength(1);
     expect(lines[0].id).toBe(9);
   });
@@ -65,7 +74,12 @@ describe("stdio transport", () => {
       stdout: out.stream,
       providerClientFactory: () => stubProvider("x"),
     });
-    const lines = out.chunks.join("").trim().split("\n").filter(Boolean).map((l) => JSON.parse(l));
+    const lines = out.chunks
+      .join("")
+      .trim()
+      .split("\n")
+      .filter(Boolean)
+      .map((l) => JSON.parse(l));
     expect(lines[0].error.code).toBe(-32700);
   });
 });

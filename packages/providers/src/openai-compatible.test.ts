@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createOpenAICompatibleClient } from "./openai-compatible.js";
-import { scriptedFetch, jsonResponse } from "./test-fixtures.js";
+import { jsonResponse, scriptedFetch } from "./test-fixtures.js";
 
 describe("OpenAI-compatible client", () => {
   it("POSTs to /chat/completions with bearer auth", async () => {
@@ -38,11 +38,12 @@ describe("OpenAI-compatible client", () => {
   });
 
   it("maps 401 to PROVIDER_AUTH", async () => {
-    const fetchImpl = scriptedFetch(async () =>
-      new Response(JSON.stringify({ error: "nope" }), {
-        status: 401,
-        headers: { "content-type": "application/json" },
-      }),
+    const fetchImpl = scriptedFetch(
+      async () =>
+        new Response(JSON.stringify({ error: "nope" }), {
+          status: 401,
+          headers: { "content-type": "application/json" },
+        }),
     );
     const client = createOpenAICompatibleClient(
       { kind: "openai", baseUrl: "https://x/v1", model: "m", apiKey: "k" },
@@ -54,8 +55,9 @@ describe("OpenAI-compatible client", () => {
   });
 
   it("maps 429 to PROVIDER_RATE_LIMIT", async () => {
-    const fetchImpl = scriptedFetch(async () =>
-      new Response("{}", { status: 429, headers: { "content-type": "application/json" } }),
+    const fetchImpl = scriptedFetch(
+      async () =>
+        new Response("{}", { status: 429, headers: { "content-type": "application/json" } }),
     );
     const client = createOpenAICompatibleClient(
       { kind: "openai", baseUrl: "https://x/v1", model: "m", apiKey: "k" },

@@ -3,15 +3,24 @@ import type { TaskKind } from "@prompt-forge/core";
 type Rule = { kind: TaskKind; weight: number; keywords: readonly string[] };
 
 const RULES: readonly Rule[] = [
-  { kind: "refactor", weight: 3, keywords: ["refactor", "rewrite", "restructure", "clean up", "extract"] },
+  {
+    kind: "refactor",
+    weight: 3,
+    keywords: ["refactor", "rewrite", "restructure", "clean up", "extract"],
+  },
   { kind: "bug", weight: 3, keywords: ["fix", "bug", "regression", "crash", "broken", "issue"] },
   { kind: "test", weight: 3, keywords: ["test", "tests", "spec", "tdd", "coverage"] },
   { kind: "docs", weight: 3, keywords: ["document", "documentation", "readme", "docs", "comment"] },
   { kind: "review", weight: 3, keywords: ["review", "audit", "critique", "feedback"] },
-  { kind: "feature", weight: 2, keywords: ["add", "build", "create", "implement", "support", "new", "introduce"] },
+  {
+    kind: "feature",
+    weight: 2,
+    keywords: ["add", "build", "create", "implement", "support", "new", "introduce"],
+  },
 ];
 
-const wordRe = (kw: string) => new RegExp(`\\b${kw.replace(/[.*+?^${}()|[\\\\]\\\\]/g, "\\\\$&")}\\b`, "i");
+const wordRe = (kw: string) =>
+  new RegExp(`\\b${kw.replace(/[.*+?^${}()|[\\\\]\\\\]/g, "\\\\$&")}\\b`, "i");
 
 export const classifyTask = (rawPrompt: string): TaskKind => {
   const text = rawPrompt.trim();

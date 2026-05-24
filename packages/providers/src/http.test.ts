@@ -1,16 +1,17 @@
 import { describe, expect, it } from "vitest";
 import { requestJson } from "./http.js";
-import { scriptedFetch, jsonResponse } from "./test-fixtures.js";
+import { jsonResponse, scriptedFetch } from "./test-fixtures.js";
 
 const url = "https://example.test/endpoint";
 
 describe("requestJson", () => {
   it("maps 401 to PROVIDER_AUTH", async () => {
-    const fetchImpl = scriptedFetch(async () =>
-      new Response(JSON.stringify({ error: "no" }), {
-        status: 401,
-        headers: { "content-type": "application/json" },
-      }),
+    const fetchImpl = scriptedFetch(
+      async () =>
+        new Response(JSON.stringify({ error: "no" }), {
+          status: 401,
+          headers: { "content-type": "application/json" },
+        }),
     );
     const r = await requestJson({ url, body: {} }, fetchImpl);
     expect(r.ok).toBe(false);
@@ -18,11 +19,12 @@ describe("requestJson", () => {
   });
 
   it("maps 429 to PROVIDER_RATE_LIMIT", async () => {
-    const fetchImpl = scriptedFetch(async () =>
-      new Response("{}", {
-        status: 429,
-        headers: { "content-type": "application/json" },
-      }),
+    const fetchImpl = scriptedFetch(
+      async () =>
+        new Response("{}", {
+          status: 429,
+          headers: { "content-type": "application/json" },
+        }),
     );
     const r = await requestJson({ url, body: {} }, fetchImpl);
     expect(r.ok).toBe(false);
@@ -30,11 +32,12 @@ describe("requestJson", () => {
   });
 
   it("maps 504 to PROVIDER_TIMEOUT", async () => {
-    const fetchImpl = scriptedFetch(async () =>
-      new Response("{}", {
-        status: 504,
-        headers: { "content-type": "application/json" },
-      }),
+    const fetchImpl = scriptedFetch(
+      async () =>
+        new Response("{}", {
+          status: 504,
+          headers: { "content-type": "application/json" },
+        }),
     );
     const r = await requestJson({ url, body: {} }, fetchImpl);
     expect(r.ok).toBe(false);
@@ -42,11 +45,12 @@ describe("requestJson", () => {
   });
 
   it("maps 500 to PROVIDER_UNREACHABLE", async () => {
-    const fetchImpl = scriptedFetch(async () =>
-      new Response("{}", {
-        status: 500,
-        headers: { "content-type": "application/json" },
-      }),
+    const fetchImpl = scriptedFetch(
+      async () =>
+        new Response("{}", {
+          status: 500,
+          headers: { "content-type": "application/json" },
+        }),
     );
     const r = await requestJson({ url, body: {} }, fetchImpl);
     expect(r.ok).toBe(false);
@@ -54,11 +58,12 @@ describe("requestJson", () => {
   });
 
   it("returns PROVIDER_BAD_RESPONSE for non-JSON content-type", async () => {
-    const fetchImpl = scriptedFetch(async () =>
-      new Response("<html>nope</html>", {
-        status: 200,
-        headers: { "content-type": "text/html" },
-      }),
+    const fetchImpl = scriptedFetch(
+      async () =>
+        new Response("<html>nope</html>", {
+          status: 200,
+          headers: { "content-type": "text/html" },
+        }),
     );
     const r = await requestJson({ url, body: {} }, fetchImpl);
     expect(r.ok).toBe(false);

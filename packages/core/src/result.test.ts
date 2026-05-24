@@ -1,15 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  err,
-  flatMap,
-  fromThrowable,
-  isErr,
-  isOk,
-  map,
-  mapErr,
-  ok,
-  unwrapOr,
-} from "./result.js";
+import { err, flatMap, fromThrowable, isErr, isOk, map, mapErr, ok, unwrapOr } from "./result.js";
 
 describe("Result", () => {
   it("ok wraps a value", () => {
@@ -55,7 +45,10 @@ describe("Result", () => {
   });
 
   it("fromThrowable wraps a non-throwing async fn as ok", async () => {
-    const r = await fromThrowable(async () => 5, (e) => String(e));
+    const r = await fromThrowable(
+      async () => 5,
+      (e) => String(e),
+    );
     expect(r).toEqual(ok(5));
   });
 

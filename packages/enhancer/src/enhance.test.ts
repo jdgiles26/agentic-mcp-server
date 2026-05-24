@@ -1,6 +1,6 @@
-import { describe, expect, it } from "vitest";
-import { ok, type ChatRequest } from "@prompt-forge/core";
+import { type ChatRequest, ok } from "@prompt-forge/core";
 import type { ProviderClient } from "@prompt-forge/providers";
+import { describe, expect, it } from "vitest";
 import { enhance } from "./enhance.js";
 
 const scriptedClient = (
@@ -70,7 +70,10 @@ describe("enhance", () => {
       async chat() {
         call += 1;
         if (call === 1) return ok({ content: "```prompt\ndraft\n```" });
-        return { ok: false as const, error: { code: "PROVIDER_UNREACHABLE" as const, message: "x" } };
+        return {
+          ok: false as const,
+          error: { code: "PROVIDER_UNREACHABLE" as const, message: "x" },
+        };
       },
     };
     const r = await enhance(client, {

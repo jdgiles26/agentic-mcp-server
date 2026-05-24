@@ -1,4 +1,5 @@
 import {
+  type AppError,
   appError,
   type ChatRequest,
   type ChatResponse,
@@ -6,7 +7,6 @@ import {
   ok,
   type ProviderConfig,
   type Result,
-  type AppError,
 } from "@prompt-forge/core";
 import type { ProviderClient } from "./client.js";
 import { type FetchImpl, requestJson } from "./http.js";
@@ -49,9 +49,7 @@ export const createOllamaClient = (
             ...(r.value.prompt_eval_count !== undefined
               ? { promptTokens: r.value.prompt_eval_count }
               : {}),
-            ...(r.value.eval_count !== undefined
-              ? { completionTokens: r.value.eval_count }
-              : {}),
+            ...(r.value.eval_count !== undefined ? { completionTokens: r.value.eval_count } : {}),
           }
         : undefined;
     return ok({

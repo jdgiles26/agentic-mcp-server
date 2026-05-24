@@ -1,6 +1,6 @@
-import type { Readable, Writable } from "node:stream";
 import { createInterface } from "node:readline";
-import { handleMcpRequest, type ProviderClientFactory, type JsonRpcResponse } from "./server.js";
+import type { Readable, Writable } from "node:stream";
+import { handleMcpRequest, type JsonRpcResponse, type ProviderClientFactory } from "./server.js";
 
 export type StdioOptions = {
   stdin?: Readable;
@@ -39,6 +39,7 @@ export const runStdioServer = async (opts: StdioOptions = {}): Promise<void> => 
 };
 
 import { pathToFileURL as __pathToFileURL } from "node:url";
+
 if (import.meta.url === __pathToFileURL(process.argv[1] ?? "").href) {
   runStdioServer().catch((e) => {
     process.stderr.write(`stdio server error: ${e instanceof Error ? e.message : String(e)}\n`);

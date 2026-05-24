@@ -1,7 +1,7 @@
-import { describe, expect, it } from "vitest";
-import { ok, type ChatRequest } from "@prompt-forge/core";
-import type { ProviderClient } from "@prompt-forge/providers";
+import { type ChatRequest, ok } from "@prompt-forge/core";
 import { PATTERN_CATALOG } from "@prompt-forge/patterns";
+import type { ProviderClient } from "@prompt-forge/providers";
+import { describe, expect, it } from "vitest";
 import { handleMcpRequest, type ProviderClientFactory } from "./server.js";
 
 const stubProvider = (content: string): ProviderClient => ({
@@ -98,10 +98,9 @@ describe("MCP server handler", () => {
   });
 
   it("rejects malformed jsonrpc payloads", async () => {
-    const r = await handleMcpRequest(
-      { id: 7, method: "tools/list" } as any,
-      { providerClientFactory: fixedFactory("```prompt\nx\n```") },
-    );
+    const r = await handleMcpRequest({ id: 7, method: "tools/list" } as any, {
+      providerClientFactory: fixedFactory("```prompt\nx\n```"),
+    });
     expect(r?.error?.code).toBe(-32600);
   });
 

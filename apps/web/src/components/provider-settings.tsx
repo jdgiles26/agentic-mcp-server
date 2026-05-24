@@ -1,24 +1,18 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
 import {
+  type AppConfig,
   createLocalStorageStore,
   emptyAppConfig,
   removeProvider,
   setActiveProvider,
   upsertProvider,
-  type AppConfig,
 } from "@prompt-forge/config";
-import { ProviderConfigSchema, type ProviderConfig, type ProviderKind } from "@prompt-forge/core";
+import { type ProviderConfig, ProviderConfigSchema, type ProviderKind } from "@prompt-forge/core";
 import { DEFAULT_BASE_URLS } from "@prompt-forge/providers";
+import { useEffect, useMemo, useState } from "react";
 
-const PROVIDER_KINDS: ProviderKind[] = [
-  "ollama",
-  "lemonade",
-  "llamacpp",
-  "openai",
-  "anthropic",
-];
+const PROVIDER_KINDS: ProviderKind[] = ["ollama", "lemonade", "llamacpp", "openai", "anthropic"];
 
 const DEFAULT_MODELS: Record<ProviderKind, string> = {
   ollama: "llama3.1:8b",
@@ -28,10 +22,7 @@ const DEFAULT_MODELS: Record<ProviderKind, string> = {
   anthropic: "claude-3-5-sonnet-latest",
 };
 
-type DraftMap = Record<
-  ProviderKind,
-  { baseUrl: string; model: string; apiKey: string }
->;
+type DraftMap = Record<ProviderKind, { baseUrl: string; model: string; apiKey: string }>;
 
 const emptyDrafts = (): DraftMap =>
   Object.fromEntries(
@@ -260,9 +251,7 @@ export function ProviderSettings() {
               )}
             </div>
             {saveErr && <div className="error">{saveErr}</div>}
-            {tr && (
-              <div className={tr.ok ? "tags" : "error"}>{tr.message}</div>
-            )}
+            {tr && <div className={tr.ok ? "tags" : "error"}>{tr.message}</div>}
           </section>
         );
       })}

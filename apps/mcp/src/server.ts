@@ -1,13 +1,13 @@
-import { z } from "zod";
 import {
-  ProviderConfigSchema,
   EnhancementRequestSchema,
   type ProviderConfig,
+  ProviderConfigSchema,
 } from "@prompt-forge/core";
+import { enhance } from "@prompt-forge/enhancer";
+import { findPatternBySlug, PATTERN_CATALOG } from "@prompt-forge/patterns";
 import type { ProviderClient } from "@prompt-forge/providers";
 import { createProviderClient } from "@prompt-forge/providers";
-import { enhance } from "@prompt-forge/enhancer";
-import { PATTERN_CATALOG, findPatternBySlug } from "@prompt-forge/patterns";
+import { z } from "zod";
 
 export type ProviderClientFactory = (config: ProviderConfig) => ProviderClient;
 
@@ -86,7 +86,12 @@ const TOOLS = [
   },
 ];
 
-const makeError = (id: JsonRpcRequest["id"], code: number, message: string, data?: unknown): JsonRpcResponse => ({
+const makeError = (
+  id: JsonRpcRequest["id"],
+  code: number,
+  message: string,
+  data?: unknown,
+): JsonRpcResponse => ({
   jsonrpc: "2.0",
   id: id ?? null,
   error: { code, message, ...(data !== undefined ? { data } : {}) },
@@ -182,9 +187,7 @@ export const handleMcpRequest = async (
 
     if (req.method === "resources/read") {
       if (isNotification) return undefined;
-      const readParams = z
-        .object({ uri: z.string() })
-        .safeParse(req.params);
+      const readParams = z.object({ uri: z.string() }).safeParse(req.params);
       if (!readParams.success) {
         return makeError(req.id, InvalidParams, "Invalid resources/read params");
       }
@@ -212,7 +215,11 @@ export const handleMcpRequest = async (
     return makeError(req.id, MethodNotFound, `Method not found: ${req.method}`);
   } catch (e) {
     if (isNotification) return undefined;
-    return makeError(req.id ?? null, InternalError, e instanceof Error ? e.message : "Internal error");
+    return makeError(
+      req.id ?? null,
+      InternalError,
+      e instanceof Error ? e.message : "Internal error",
+    );
   }
 };
 

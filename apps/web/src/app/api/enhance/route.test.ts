@@ -1,6 +1,6 @@
-import { describe, expect, it } from "vitest";
 import { ok } from "@prompt-forge/core";
 import type { ProviderClient } from "@prompt-forge/providers";
+import { describe, expect, it } from "vitest";
 import { handleEnhanceRequest } from "./handler.js";
 
 const stub = (content: string): ProviderClient => ({
@@ -65,7 +65,11 @@ describe("POST /api/enhance handler", () => {
       async chat() {
         return {
           ok: false as const,
-          error: { code: "PROVIDER_UNREACHABLE" as const, message: "fetch failed", cause: new Error("internal /etc/hosts path") },
+          error: {
+            code: "PROVIDER_UNREACHABLE" as const,
+            message: "fetch failed",
+            cause: new Error("internal /etc/hosts path"),
+          },
         };
       },
     };
@@ -107,4 +111,3 @@ describe("POST /api/enhance handler", () => {
     expect(seen.temperature).toBe(0.3);
   });
 });
-

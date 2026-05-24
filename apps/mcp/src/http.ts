@@ -7,6 +7,8 @@ export type HttpServerOptions = {
   providerClientFactory?: ProviderClientFactory;
   maxBodyBytes?: number;
   corsOrigin?: string;
+  authToken?: string;
+  sseKeepAliveMs?: number;
 };
 
 export type HttpServerHandle = {
@@ -16,10 +18,15 @@ export type HttpServerHandle = {
 
 const DEFAULT_MAX_BODY_BYTES = 262144; // 256 KiB
 const DEFAULT_CORS_ORIGIN = "*";
+const DEFAULT_SSE_KEEPALIVE_MS = 15000;
 
-type ReadBodyResult =
-  | { ok: true; body: string }
-  | { ok: false; reason: "too-large" };
+const writeSseEvent = (res: ServerResponse, event: string, data: string) => {
+  res.write(`event: ${event}\n`);
+  for (const line of data.split("\n")) res.write(`data: ${line}\n`);
+  res.write("\n");
+};
+
+type ReadBodyResult = { ok: true; body: string } | { ok: false; reason: "too-large" };
 
 const readBody = (req: IncomingMessage, maxBytes: number): Promise<ReadBodyResult> =>
   new Promise((resolve, reject) => {
@@ -96,10 +103,63 @@ export const startHttpServer = async (
       res.end();
       return;
     }
+    if (req.method === "GET") {
+      const accept = req.headers.accept ?? "";
+      if (!accept.includes("text/event-stream")) {
+        res.writeHead(405, corsHeaders);
+        res.end();
+        return;
+      }
+      if (options.authToken) {
+        const got = req.headers.authorization ?? "";
+        if (got !== `Bearer ${options.authToken}`) {
+          send(
+            res,
+            401,
+            { jsonrpc: "2.0", id: null, error: { code: -32001, message: "Unauthorized" } },
+            corsHeaders,
+          );
+          return;
+        }
+      }
+      const sessionId = `sess-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+      res.writeHead(200, {
+        "content-type": "text/event-stream",
+        "cache-control": "no-cache, no-transform",
+        connection: "keep-alive",
+        "mcp-session-id": sessionId,
+        ...corsHeaders,
+      });
+      // Initial keep-alive comment so clients see the channel open immediately.
+      res.write(`: open ${sessionId}\n\n`);
+      const keepAlive = setInterval(() => {
+        if (res.writableEnded) return;
+        res.write(": keep-alive\n\n");
+      }, options.sseKeepAliveMs ?? DEFAULT_SSE_KEEPALIVE_MS);
+      req.on("close", () => clearInterval(keepAlive));
+      return;
+    }
     if (req.method !== "POST") {
       res.writeHead(405, corsHeaders);
       res.end();
       return;
+    }
+    if (options.authToken) {
+      const got = req.headers.authorization ?? "";
+      const expected = `Bearer ${options.authToken}`;
+      if (got !== expected) {
+        send(
+          res,
+          401,
+          {
+            jsonrpc: "2.0",
+            id: null,
+            error: { code: -32001, message: "Unauthorized" },
+          },
+          corsHeaders,
+        );
+        return;
+      }
     }
     let body: string;
     try {
@@ -140,10 +200,24 @@ export const startHttpServer = async (
       return;
     }
     const result = await handleMcpRequest(payload, {
-      ...(options.providerClientFactory ? { providerClientFactory: options.providerClientFactory } : {}),
+      ...(options.providerClientFactory
+        ? { providerClientFactory: options.providerClientFactory }
+        : {}),
     });
     if (result === undefined) {
       res.writeHead(204, corsHeaders);
+      res.end();
+      return;
+    }
+    const wantsSse = (req.headers.accept ?? "").includes("text/event-stream");
+    if (wantsSse) {
+      res.writeHead(200, {
+        "content-type": "text/event-stream",
+        "cache-control": "no-cache, no-transform",
+        connection: "keep-alive",
+        ...corsHeaders,
+      });
+      writeSseEvent(res, "message", JSON.stringify(result));
       res.end();
       return;
     }
@@ -166,9 +240,13 @@ export const startHttpServer = async (
 };
 
 import { pathToFileURL as __pathToFileURL } from "node:url";
+
 if (import.meta.url === __pathToFileURL(process.argv[1] ?? "").href) {
   const port = Number(process.env.PORT ?? 8787);
-  startHttpServer({ port }).then((h) => {
-    process.stderr.write(`promptforge mcp http listening on http://127.0.0.1:${h.port}/mcp\n`);
+  const host = process.env.HOST ?? "127.0.0.1";
+  const authToken = process.env.PROMPTFORGE_MCP_TOKEN;
+  startHttpServer({ port, host, ...(authToken ? { authToken } : {}) }).then((h) => {
+    const auth = authToken ? " (auth required)" : "";
+    process.stderr.write(`promptforge mcp http listening on http://${host}:${h.port}/mcp${auth}\n`);
   });
 }

@@ -11,18 +11,13 @@ export const isErr = <T, E>(r: Result<T, E>): r is Err<E> => !r.ok;
 export const map = <T, U, E>(r: Result<T, E>, fn: (v: T) => U): Result<U, E> =>
   r.ok ? ok(fn(r.value)) : r;
 
-export const flatMap = <T, U, E>(
-  r: Result<T, E>,
-  fn: (v: T) => Result<U, E>,
-): Result<U, E> => (r.ok ? fn(r.value) : r);
+export const flatMap = <T, U, E>(r: Result<T, E>, fn: (v: T) => Result<U, E>): Result<U, E> =>
+  r.ok ? fn(r.value) : r;
 
-export const mapErr = <T, E, F>(
-  r: Result<T, E>,
-  fn: (e: E) => F,
-): Result<T, F> => (r.ok ? r : err(fn(r.error)));
+export const mapErr = <T, E, F>(r: Result<T, E>, fn: (e: E) => F): Result<T, F> =>
+  r.ok ? r : err(fn(r.error));
 
-export const unwrapOr = <T, E>(r: Result<T, E>, fallback: T): T =>
-  r.ok ? r.value : fallback;
+export const unwrapOr = <T, E>(r: Result<T, E>, fallback: T): T => (r.ok ? r.value : fallback);
 
 export const fromThrowable = async <T, E>(
   fn: () => Promise<T>,

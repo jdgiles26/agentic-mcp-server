@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createProviderClient, DEFAULT_BASE_URLS } from "./factory.js";
-import { scriptedFetch, jsonResponse } from "./test-fixtures.js";
+import { jsonResponse, scriptedFetch } from "./test-fixtures.js";
 
 describe("factory", () => {
   it("routes openai kind to OpenAI-compatible client", async () => {

@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
 import { PATTERN_CATALOG } from "@prompt-forge/patterns";
+import { describe, expect, it } from "vitest";
 import {
   buildEnhancementMessages,
   buildReflectionMessages,

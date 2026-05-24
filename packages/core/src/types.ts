@@ -1,12 +1,6 @@
 import { z } from "zod";
 
-export const ProviderKindSchema = z.enum([
-  "ollama",
-  "lemonade",
-  "llamacpp",
-  "openai",
-  "anthropic",
-]);
+export const ProviderKindSchema = z.enum(["ollama", "lemonade", "llamacpp", "openai", "anthropic"]);
 export type ProviderKind = z.infer<typeof ProviderKindSchema>;
 
 const BaseProviderConfig = z.object({
