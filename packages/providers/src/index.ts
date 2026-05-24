@@ -1,3 +1,4 @@
+export * from "./anthropic.js";
 export * from "./client.js";
 export * from "./http.js";
 export * from "./openai-compatible.js";

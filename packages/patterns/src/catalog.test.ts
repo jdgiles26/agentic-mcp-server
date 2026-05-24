@@ -2,8 +2,28 @@ import { describe, expect, it } from "vitest";
 import { PATTERN_CATALOG, findPatternBySlug, allPatterns } from "./index.js";
 
 describe("PATTERN_CATALOG invariants", () => {
-  it("has at least 5 entries (vertical slice)", () => {
-    expect(PATTERN_CATALOG.length).toBeGreaterThanOrEqual(5);
+  it("has at least 22 entries (full catalog)", () => {
+    expect(PATTERN_CATALOG.length).toBeGreaterThanOrEqual(22);
+  });
+
+  it("every one of the 7 categories appears at least once", () => {
+    const categories = new Set(PATTERN_CATALOG.map((p) => p.category));
+    for (const c of [
+      "orchestration",
+      "feedback",
+      "context",
+      "reliability",
+      "security",
+      "ux",
+      "learning",
+    ]) {
+      expect(categories).toContain(c);
+    }
+  });
+
+  it("no two patterns share the same name", () => {
+    const names = PATTERN_CATALOG.map((p) => p.name);
+    expect(new Set(names).size).toBe(names.length);
   });
 
   it("every slug is unique", () => {

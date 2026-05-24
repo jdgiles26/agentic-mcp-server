@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
   ChatRequestSchema,
+  ChatResponseSchema,
   EnhancementRequestSchema,
+  PatternSchema,
   ProviderConfigSchema,
   TaskKindSchema,
 } from "./types.js";
@@ -88,6 +90,40 @@ describe("EnhancementRequestSchema", () => {
       taskKind: "refactor",
     });
     expect(r.success).toBe(true);
+  });
+});
+
+describe("ChatResponseSchema", () => {
+  it("rejects when content is missing", () => {
+    const r = ChatResponseSchema.safeParse({ finishReason: "stop" });
+    expect(r.success).toBe(false);
+  });
+});
+
+describe("PatternSchema", () => {
+  const valid = {
+    slug: "x-pattern",
+    name: "X Pattern",
+    category: "orchestration",
+    triggers: ["a", "b", "c"],
+    taskKinds: ["feature"],
+    directive: "## X Pattern\nDo the thing.",
+    sourceUrl: "https://agentic-patterns.com/patterns/x-pattern",
+  };
+
+  it("rejects when triggers is an empty array", () => {
+    const r = PatternSchema.safeParse({ ...valid, triggers: [] });
+    expect(r.success).toBe(false);
+  });
+
+  it("rejects when sourceUrl is not a URL", () => {
+    const r = PatternSchema.safeParse({ ...valid, sourceUrl: "not-a-url" });
+    expect(r.success).toBe(false);
+  });
+
+  it("rejects unknown category", () => {
+    const r = PatternSchema.safeParse({ ...valid, category: "frobnication" });
+    expect(r.success).toBe(false);
   });
 });
 

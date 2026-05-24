@@ -1,4 +1,5 @@
 import type { ProviderConfig, ProviderKind } from "@prompt-forge/core";
+import { createAnthropicClient } from "./anthropic.js";
 import type { ProviderClient } from "./client.js";
 import { type FetchImpl } from "./http.js";
 import { createOllamaClient } from "./ollama.js";
@@ -26,7 +27,6 @@ export const createProviderClient = (
     case "openai":
       return createOpenAICompatibleClient(config, opts);
     case "anthropic":
-      // For vertical slice, route anthropic through openai-compatible-style err
-      return createOpenAICompatibleClient(config, opts);
+      return createAnthropicClient(config, opts.fetchImpl);
   }
 };

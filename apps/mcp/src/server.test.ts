@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { ok, type ChatRequest } from "@prompt-forge/core";
 import type { ProviderClient } from "@prompt-forge/providers";
+import { PATTERN_CATALOG } from "@prompt-forge/patterns";
 import { handleMcpRequest, type ProviderClientFactory } from "./server.js";
 
 const stubProvider = (content: string): ProviderClient => ({
@@ -102,5 +103,95 @@ describe("MCP server handler", () => {
       { providerClientFactory: fixedFactory("```prompt\nx\n```") },
     );
     expect(r?.error?.code).toBe(-32600);
+  });
+
+  it("advertises both tools and resources capabilities on initialize", async () => {
+    const r = await handleMcpRequest(
+      { jsonrpc: "2.0", id: 10, method: "initialize", params: { protocolVersion: "2024-11-05" } },
+      { providerClientFactory: fixedFactory("x") },
+    );
+    const caps = (r?.result as any).capabilities;
+    expect(caps).toBeDefined();
+    expect(caps.tools).toBeDefined();
+    expect(caps.resources).toBeDefined();
+  });
+
+  it("resources/list returns one resource per catalog entry", async () => {
+    const r = await handleMcpRequest(
+      { jsonrpc: "2.0", id: 11, method: "resources/list", params: {} },
+      { providerClientFactory: fixedFactory("x") },
+    );
+    expect(r?.error).toBeUndefined();
+    const resources = (r?.result as any).resources as Array<{
+      uri: string;
+      name: string;
+      mimeType: string;
+      description: string;
+    }>;
+    expect(resources).toHaveLength(PATTERN_CATALOG.length);
+    for (const res of resources) {
+      expect(res.uri.startsWith("promptforge://patterns/")).toBe(true);
+      expect(res.mimeType).toBe("text/markdown");
+      expect(res.description.length).toBeGreaterThan(0);
+      // description is first directive line, leading "## " stripped
+      expect(res.description.startsWith("## ")).toBe(false);
+      expect(res.description.includes("\n")).toBe(false);
+    }
+    const slugs = resources.map((r) => r.uri.replace("promptforge://patterns/", ""));
+    for (const p of PATTERN_CATALOG) {
+      expect(slugs).toContain(p.slug);
+    }
+  });
+
+  it("resources/read returns the directive for a valid catalog URI", async () => {
+    const sample = PATTERN_CATALOG[0]!;
+    const r = await handleMcpRequest(
+      {
+        jsonrpc: "2.0",
+        id: 12,
+        method: "resources/read",
+        params: { uri: `promptforge://patterns/${sample.slug}` },
+      },
+      { providerClientFactory: fixedFactory("x") },
+    );
+    expect(r?.error).toBeUndefined();
+    const contents = (r?.result as any).contents as Array<{
+      uri: string;
+      mimeType: string;
+      text: string;
+    }>;
+    expect(contents).toHaveLength(1);
+    expect(contents[0]!.uri).toBe(`promptforge://patterns/${sample.slug}`);
+    expect(contents[0]!.mimeType).toBe("text/markdown");
+    expect(contents[0]!.text).toContain(sample.directive);
+    expect(contents[0]!.text).toContain(sample.sourceUrl);
+  });
+
+  it("resources/read returns -32602 for an unknown slug", async () => {
+    const r = await handleMcpRequest(
+      {
+        jsonrpc: "2.0",
+        id: 13,
+        method: "resources/read",
+        params: { uri: "promptforge://patterns/does-not-exist" },
+      },
+      { providerClientFactory: fixedFactory("x") },
+    );
+    expect(r?.error?.code).toBe(-32602);
+    expect(r?.error?.message).toContain("promptforge://patterns/does-not-exist");
+  });
+
+  it("resources/read rejects non-promptforge schemes with -32602", async () => {
+    const r = await handleMcpRequest(
+      {
+        jsonrpc: "2.0",
+        id: 14,
+        method: "resources/read",
+        params: { uri: "http://evil/x" },
+      },
+      { providerClientFactory: fixedFactory("x") },
+    );
+    expect(r?.error?.code).toBe(-32602);
+    expect(r?.error?.message).toContain("http://evil/x");
   });
 });

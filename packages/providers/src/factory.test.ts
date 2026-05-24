@@ -36,6 +36,42 @@ describe("factory", () => {
     expect(r.ok).toBe(true);
   });
 
+  it("routes lemonade kind to OpenAI-compatible client with default lemonade bearer", async () => {
+    let seenReq: Request | undefined;
+    const fetchImpl = scriptedFetch(async (req) => {
+      seenReq = req;
+      return jsonResponse({
+        choices: [{ message: { content: "x", role: "assistant" }, finish_reason: "stop" }],
+      });
+    });
+    const client = createProviderClient(
+      { kind: "lemonade", baseUrl: "http://localhost:13305/api/v1", model: "m" },
+      { fetchImpl },
+    );
+    const r = await client.chat({ messages: [{ role: "user", content: "hi" }] });
+    expect(r.ok).toBe(true);
+    expect(seenReq?.url).toBe("http://localhost:13305/api/v1/chat/completions");
+    expect(seenReq?.headers.get("authorization")).toBe("Bearer lemonade");
+  });
+
+  it("routes llamacpp kind to OpenAI-compatible client with no authorization header", async () => {
+    let seenReq: Request | undefined;
+    const fetchImpl = scriptedFetch(async (req) => {
+      seenReq = req;
+      return jsonResponse({
+        choices: [{ message: { content: "x", role: "assistant" }, finish_reason: "stop" }],
+      });
+    });
+    const client = createProviderClient(
+      { kind: "llamacpp", baseUrl: "http://localhost:8080/v1", model: "m" },
+      { fetchImpl },
+    );
+    const r = await client.chat({ messages: [{ role: "user", content: "hi" }] });
+    expect(r.ok).toBe(true);
+    expect(seenReq?.url).toBe("http://localhost:8080/v1/chat/completions");
+    expect(seenReq?.headers.get("authorization")).toBeNull();
+  });
+
   it("exposes default base URLs for the UI", () => {
     expect(DEFAULT_BASE_URLS.ollama).toBe("http://localhost:11434");
     expect(DEFAULT_BASE_URLS.lemonade).toBe("http://localhost:13305/api/v1");

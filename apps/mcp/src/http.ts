@@ -5,6 +5,8 @@ export type HttpServerOptions = {
   port?: number;
   host?: string;
   providerClientFactory?: ProviderClientFactory;
+  maxBodyBytes?: number;
+  corsOrigin?: string;
 };
 
 export type HttpServerHandle = {
@@ -12,50 +14,140 @@ export type HttpServerHandle = {
   close: () => Promise<void>;
 };
 
-const readBody = (req: IncomingMessage): Promise<string> =>
+const DEFAULT_MAX_BODY_BYTES = 262144; // 256 KiB
+const DEFAULT_CORS_ORIGIN = "*";
+
+type ReadBodyResult =
+  | { ok: true; body: string }
+  | { ok: false; reason: "too-large" };
+
+const readBody = (req: IncomingMessage, maxBytes: number): Promise<ReadBodyResult> =>
   new Promise((resolve, reject) => {
     const chunks: Buffer[] = [];
-    req.on("data", (c) => chunks.push(c as Buffer));
-    req.on("end", () => resolve(Buffer.concat(chunks).toString("utf8")));
-    req.on("error", reject);
+    let total = 0;
+    let settled = false;
+    let exceeded = false;
+    const finish = (result: ReadBodyResult) => {
+      if (settled) return;
+      settled = true;
+      resolve(result);
+    };
+    req.on("data", (c: Buffer) => {
+      if (exceeded) return;
+      total += c.length;
+      if (total > maxBytes) {
+        exceeded = true;
+        finish({ ok: false, reason: "too-large" });
+        // Don't keep buffering further chunks, but let the request drain
+        // naturally so the response we write is delivered cleanly.
+        return;
+      }
+      chunks.push(c);
+    });
+    req.on("end", () => {
+      if (exceeded) return;
+      finish({ ok: true, body: Buffer.concat(chunks).toString("utf8") });
+    });
+    req.on("close", () => {
+      if (settled || exceeded) return;
+      // Client hung up before we got 'end' and we never exceeded — treat as error.
+      settled = true;
+      reject(new Error("client closed connection"));
+    });
+    req.on("error", (err) => {
+      if (settled) return;
+      settled = true;
+      reject(err);
+    });
   });
 
-const send = (res: ServerResponse, status: number, body: unknown) => {
-  res.writeHead(status, { "content-type": "application/json" });
+const send = (
+  res: ServerResponse,
+  status: number,
+  body: unknown,
+  extraHeaders: Record<string, string> = {},
+) => {
+  res.writeHead(status, { "content-type": "application/json", ...extraHeaders });
   res.end(JSON.stringify(body));
 };
 
 export const startHttpServer = async (
   options: HttpServerOptions = {},
 ): Promise<HttpServerHandle> => {
+  const maxBodyBytes = options.maxBodyBytes ?? DEFAULT_MAX_BODY_BYTES;
+  const corsOrigin = options.corsOrigin ?? DEFAULT_CORS_ORIGIN;
+  const corsHeaders: Record<string, string> = {
+    "access-control-allow-origin": corsOrigin,
+  };
+
   const server = createServer(async (req, res) => {
     if (!req.url || !req.url.startsWith("/mcp")) {
       res.writeHead(404);
       res.end();
       return;
     }
-    if (req.method !== "POST") {
-      res.writeHead(405);
+    if (req.method === "OPTIONS") {
+      res.writeHead(204, {
+        "access-control-allow-origin": corsOrigin,
+        "access-control-allow-methods": "POST, OPTIONS",
+        "access-control-allow-headers": "content-type, mcp-protocol-version",
+        "access-control-max-age": "86400",
+      });
       res.end();
+      return;
+    }
+    if (req.method !== "POST") {
+      res.writeHead(405, corsHeaders);
+      res.end();
+      return;
+    }
+    let body: string;
+    try {
+      const read = await readBody(req, maxBodyBytes);
+      if (!read.ok) {
+        send(
+          res,
+          413,
+          {
+            jsonrpc: "2.0",
+            id: null,
+            error: { code: -32600, message: "Request body too large" },
+          },
+          corsHeaders,
+        );
+        return;
+      }
+      body = read.body;
+    } catch {
+      send(
+        res,
+        400,
+        { jsonrpc: "2.0", id: null, error: { code: -32700, message: "Parse error" } },
+        corsHeaders,
+      );
       return;
     }
     let payload: unknown;
     try {
-      const raw = await readBody(req);
-      payload = JSON.parse(raw);
+      payload = JSON.parse(body);
     } catch {
-      send(res, 400, { jsonrpc: "2.0", id: null, error: { code: -32700, message: "Parse error" } });
+      send(
+        res,
+        400,
+        { jsonrpc: "2.0", id: null, error: { code: -32700, message: "Parse error" } },
+        corsHeaders,
+      );
       return;
     }
     const result = await handleMcpRequest(payload, {
       ...(options.providerClientFactory ? { providerClientFactory: options.providerClientFactory } : {}),
     });
     if (result === undefined) {
-      res.writeHead(204);
+      res.writeHead(204, corsHeaders);
       res.end();
       return;
     }
-    send(res, 200, result);
+    send(res, 200, result, corsHeaders);
   });
 
   await new Promise<void>((resolve) => {

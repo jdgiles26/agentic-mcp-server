@@ -7,6 +7,7 @@ import {
 import type { ProviderClient } from "@prompt-forge/providers";
 import { createProviderClient } from "@prompt-forge/providers";
 import { enhance } from "@prompt-forge/enhancer";
+import { PATTERN_CATALOG, findPatternBySlug } from "@prompt-forge/patterns";
 
 export type ProviderClientFactory = (config: ProviderConfig) => ProviderClient;
 
@@ -36,6 +37,12 @@ const InternalError = -32603;
 
 const SERVER_INFO = { name: "promptforge", version: "0.0.0" };
 const PROTOCOL_VERSION = "2024-11-05";
+const RESOURCE_URI_PREFIX = "promptforge://patterns/";
+
+const directiveSummary = (directive: string): string => {
+  const firstLine = directive.split("\n")[0] ?? "";
+  return firstLine.replace(/^##\s+/, "").trim();
+};
 
 const EnhanceArgsSchema = EnhancementRequestSchema.extend({
   provider: ProviderConfigSchema,
@@ -112,7 +119,7 @@ export const handleMcpRequest = async (
       if (isNotification) return undefined;
       return makeResult(req.id, {
         protocolVersion: PROTOCOL_VERSION,
-        capabilities: { tools: {} },
+        capabilities: { tools: {}, resources: {} },
         serverInfo: SERVER_INFO,
       });
     }
@@ -159,6 +166,45 @@ export const handleMcpRequest = async (
       return makeResult(req.id, {
         content: [{ type: "text", text }],
         isError: false,
+      });
+    }
+
+    if (req.method === "resources/list") {
+      if (isNotification) return undefined;
+      const resources = PATTERN_CATALOG.map((p) => ({
+        uri: `${RESOURCE_URI_PREFIX}${p.slug}`,
+        name: p.name,
+        mimeType: "text/markdown",
+        description: directiveSummary(p.directive),
+      }));
+      return makeResult(req.id, { resources });
+    }
+
+    if (req.method === "resources/read") {
+      if (isNotification) return undefined;
+      const readParams = z
+        .object({ uri: z.string() })
+        .safeParse(req.params);
+      if (!readParams.success) {
+        return makeError(req.id, InvalidParams, "Invalid resources/read params");
+      }
+      const { uri } = readParams.data;
+      if (!uri.startsWith(RESOURCE_URI_PREFIX)) {
+        return makeError(req.id, InvalidParams, `Invalid resource uri: ${uri}`);
+      }
+      const slug = uri.slice(RESOURCE_URI_PREFIX.length);
+      const pattern = findPatternBySlug(slug);
+      if (!pattern) {
+        return makeError(req.id, InvalidParams, `Unknown resource: ${uri}`);
+      }
+      return makeResult(req.id, {
+        contents: [
+          {
+            uri,
+            mimeType: "text/markdown",
+            text: `${pattern.directive}\n\n*Source: ${pattern.sourceUrl}*`,
+          },
+        ],
       });
     }
 
