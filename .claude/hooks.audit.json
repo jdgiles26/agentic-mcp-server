@@ -1,0 +1,15 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "tool_input=$(cat); cmd=$(printf %s \"$tool_input\" | sed -n 's/.*\"command\":\"\\([^\"]*\\)\".*/\\1/p'); case \"$cmd\" in *'git commit'*|*'git -c '*'commit'*) (cd \"$CLAUDE_PROJECT_DIR\" && node scripts/audit.mjs >/tmp/promptforge-audit.log 2>&1 &) ;; esac"
+          }
+        ]
+      }
+    ]
+  }
+}

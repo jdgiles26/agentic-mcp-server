@@ -1,0 +1,482 @@
+#!/usr/bin/env bun
+// @bun
+
+// scripts/sama-cli.ts
+import { readdirSync, readFileSync, existsSync, statSync } from "fs";
+import { resolve, relative } from "path";
+
+// src/b32_sama_verify.ts
+var SAMA_PREFIX = /^c(\d{2})_/;
+var stripStringsAndComments = (src) => {
+  let out = "";
+  let i = 0;
+  while (i < src.length) {
+    const c = src[i];
+    const n = src[i + 1];
+    if (c === "/" && n === "/") {
+      out += "  ";
+      i += 2;
+      while (i < src.length && src[i] !== `
+`) {
+        out += " ";
+        i++;
+      }
+    } else if (c === "/" && n === "*") {
+      out += "  ";
+      i += 2;
+      while (i < src.length - 1 && !(src[i] === "*" && src[i + 1] === "/")) {
+        out += src[i] === `
+` ? `
+` : " ";
+        i++;
+      }
+      out += "  ";
+      i += 2;
+    } else if (c === '"' || c === "'" || c === "`") {
+      const quote = c;
+      out += " ";
+      i++;
+      while (i < src.length && src[i] !== quote) {
+        if (src[i] === "\\" && i + 1 < src.length) {
+          out += "  ";
+          i += 2;
+          continue;
+        }
+        out += src[i] === `
+` ? `
+` : " ";
+        i++;
+      }
+      out += " ";
+      i++;
+    } else {
+      out += c ?? "";
+      i++;
+    }
+  }
+  return out;
+};
+var isSamaFile = (p) => SAMA_PREFIX.test(p) && p.endsWith(".ts");
+var isTestFile = (p) => p.endsWith(".test.ts");
+var layerOf = (filename) => {
+  const m = SAMA_PREFIX.exec(filename);
+  if (!m)
+    return null;
+  return parseInt(m[1] ?? "0", 10);
+};
+var collectRelativeImports = (source) => {
+  const out = [];
+  const stripped = stripStringsAndComments(source);
+  const staticRe = /\bfrom\s+(["'])\s*(\.\/[^"']+)\1/g;
+  const dynRe = /\bimport\s*\(\s*(["'])\s*(\.\/[^"']+)\1/g;
+  let m;
+  const pushIfReal = (mm, pathIdx) => {
+    if (stripped[mm.index] === " " || stripped[mm.index] === `
+`)
+      return;
+    out.push(mm[pathIdx]);
+  };
+  while ((m = staticRe.exec(source)) !== null)
+    pushIfReal(m, 2);
+  while ((m = dynRe.exec(source)) !== null)
+    pushIfReal(m, 2);
+  return out;
+};
+var importTargetFilename = (importPath) => {
+  return importPath.replace(/^\.\//, "");
+};
+var checkSorted = (input) => {
+  const violations = [];
+  let examined = 0;
+  for (const path of input.srcPaths) {
+    if (!isSamaFile(path))
+      continue;
+    examined++;
+    const m = SAMA_PREFIX.exec(path);
+    const prefix = m?.[1] ?? "";
+    if (!/^[13]/.test(prefix))
+      continue;
+    const content = input.contents.get(path);
+    if (!content)
+      continue;
+    for (const rawImport of collectRelativeImports(content)) {
+      const target = importTargetFilename(rawImport);
+      const targetMatch = SAMA_PREFIX.exec(target);
+      const targetPrefix = targetMatch?.[1] ?? "";
+      if (!targetPrefix)
+        continue;
+      if (/^[59]/.test(targetPrefix)) {
+        violations.push({
+          file: path,
+          detail: `imports \`${target}\` (UI layer c${targetPrefix}_) from a non-UI/non-handler file (c${prefix}_) \u2014 UI sits at the edge, foundation/data/logic must not depend on it`
+        });
+      }
+    }
+  }
+  return {
+    letter: "S",
+    property: "Sorted",
+    passed: violations.length === 0,
+    examined,
+    violations,
+    note: examined === 0 ? "no cXX_*.ts files found in the project \u2014 the convention isn't applied here" : undefined
+  };
+};
+var KNOWN_LAYERS = new Set(["11", "13", "14", "21", "31", "32", "51"]);
+var checkArchitecture = (input) => {
+  const violations = [];
+  let examined = 0;
+  for (const path of input.srcPaths) {
+    if (!isSamaFile(path))
+      continue;
+    examined++;
+    const m = SAMA_PREFIX.exec(path);
+    const prefix = m?.[1] ?? "";
+    if (!KNOWN_LAYERS.has(prefix)) {
+      violations.push({
+        file: path,
+        detail: `unknown layer prefix \`c${prefix}_\` (known: c11, c13, c14, c21, c31, c32, c51)`
+      });
+    }
+  }
+  return {
+    letter: "A",
+    property: "Architecture",
+    passed: violations.length === 0,
+    examined,
+    violations
+  };
+};
+var checkModeled = (input) => {
+  const violations = [];
+  const informational = [];
+  let examined = 0;
+  const present = new Set(input.srcPaths);
+  for (const path of input.srcPaths) {
+    if (!isSamaFile(path) || isTestFile(path))
+      continue;
+    examined++;
+    const sibling = path.replace(/\.ts$/, ".test.ts");
+    if (present.has(sibling))
+      continue;
+    const layer = layerOf(path);
+    if (layer === 32) {
+      violations.push({ file: path, detail: `no sibling test file at \`${sibling}\`` });
+    } else if (layer === 31) {
+      informational.push({ file: path, detail: `no sibling test (often fine for pure data registries; flag if logic accumulates)` });
+    }
+  }
+  const passed = violations.length === 0;
+  const note = informational.length > 0 ? `${informational.length} c31_* file${informational.length === 1 ? "" : "s"} without a sibling test \u2014 usually fine for pure-data registries, flag if logic accumulates: ${informational.map((v) => v.file).join(", ")}` : undefined;
+  return {
+    letter: "M",
+    property: "Modeled",
+    passed,
+    examined,
+    violations,
+    note
+  };
+};
+var findPlaceholderTestsLite = (file, content) => {
+  const out = [];
+  const stripped = stripStringsAndComments(content);
+  const re = /\b(test|it)\s*\(\s*(["'`])((?:\\.|(?!\2).)*)\2\s*,\s*(?:async\s+)?(?:\([^)]*\)|[^=()]*?)\s*=>\s*\{/g;
+  let m;
+  while ((m = re.exec(content)) !== null) {
+    if (stripped[m.index] === " " || stripped[m.index] === `
+`)
+      continue;
+    const name = m[3] ?? "";
+    const startBrace = re.lastIndex - 1;
+    let depth = 1;
+    let i = startBrace + 1;
+    let inString = null;
+    while (i < content.length && depth > 0) {
+      const c = content[i];
+      if (inString !== null) {
+        if (c === "\\") {
+          i += 2;
+          continue;
+        }
+        if (c === inString)
+          inString = null;
+      } else {
+        if (c === '"' || c === "'" || c === "`")
+          inString = c;
+        else if (c === "/" && content[i + 1] === "/") {
+          while (i < content.length && content[i] !== `
+`)
+            i++;
+          continue;
+        } else if (c === "/" && content[i + 1] === "*") {
+          i += 2;
+          while (i < content.length - 1 && !(content[i] === "*" && content[i + 1] === "/"))
+            i++;
+          i += 2;
+          continue;
+        } else if (c === "{")
+          depth++;
+        else if (c === "}")
+          depth--;
+      }
+      i++;
+    }
+    const body = content.slice(startBrace + 1, i - 1);
+    const expectCount = (body.match(/\bexpect\s*\(/g) ?? []).length;
+    if (expectCount === 0) {
+      out.push({ file, detail: `placeholder test \`${name}\` \u2014 zero \`expect()\` calls` });
+    }
+  }
+  return out;
+};
+var checkAtomic = (input) => {
+  const violations = [];
+  let examined = 0;
+  for (const path of input.srcPaths) {
+    if (!isSamaFile(path))
+      continue;
+    examined++;
+    const content = input.contents.get(path);
+    if (!content)
+      continue;
+    const lineCount = content.split(`
+`).length;
+    if (lineCount > 700) {
+      violations.push({
+        file: path,
+        detail: `${lineCount} lines (over the 700-line split threshold \u2014 split per UI/data domain)`
+      });
+    }
+    if (isTestFile(path)) {
+      violations.push(...findPlaceholderTestsLite(path, content));
+    }
+  }
+  return {
+    letter: "A",
+    property: "Atomic",
+    passed: violations.length === 0,
+    examined,
+    violations
+  };
+};
+var verifySama = (input) => {
+  const samaPaths = input.srcPaths.filter(isSamaFile);
+  const testPaths = samaPaths.filter(isTestFile);
+  const checks = [
+    checkSorted(input),
+    checkArchitecture(input),
+    checkModeled(input),
+    checkAtomic(input)
+  ];
+  return {
+    repoSlug: `${input.repoOwner}/${input.repoName}`,
+    defaultBranch: input.defaultBranch,
+    totalSrcFiles: input.srcPaths.length,
+    samaFiles: samaPaths.length,
+    testFiles: testPaths.length,
+    checks,
+    overallPassed: checks.every((c) => c.passed),
+    generatedAt: Date.now()
+  };
+};
+
+// scripts/sama-cli.ts
+var VERSION = "0.1.0";
+var RED = "\x1B[31m";
+var GREEN = "\x1B[32m";
+var YELLOW = "\x1B[33m";
+var DIM = "\x1B[2m";
+var BOLD = "\x1B[1m";
+var RESET = "\x1B[0m";
+var isTty = process.stdout.isTTY;
+var c = (color, s) => isTty ? `${color}${s}${RESET}` : s;
+var HELP = `sama ${VERSION} \u2014 verify any repo against the four SAMA disciplines.
+
+Usage:
+  sama check [--json] [--src=<dir>]
+      Verify the current repo's src/ directory.
+
+  sama verify-repo <owner/name> [--json]
+      Verify a public GitHub repo over HTTPS.
+
+  sama --help, --version
+
+Disciplines checked:
+  S \u2014 Sorted        UI must not be a dependency of foundation/data/logic.
+  A \u2014 Architecture  Every cXX_ prefix must be in the known set.
+  M \u2014 Modeled       c32_*.ts logic files must have a sibling cXX_*.test.ts.
+  A \u2014 Atomic        ~700-line split rule, plus zero-expect() placeholder
+                    detection on test files.
+
+Exit codes: 0 pass \xB7 1 fail \xB7 2 error.
+See https://tdd.md/sama for the full discipline pages.
+`;
+var parseArgs = (argv) => {
+  const out = { command: null, json: false, src: "src" };
+  let positional = 0;
+  for (const a of argv) {
+    if (a === "--help" || a === "-h")
+      return { ...out, command: "help" };
+    if (a === "--version" || a === "-V")
+      return { ...out, command: "version" };
+    if (a === "--json")
+      out.json = true;
+    else if (a.startsWith("--src="))
+      out.src = a.slice("--src=".length);
+    else if (a.startsWith("--")) {
+      console.error(`unknown flag: ${a}`);
+      out.command = null;
+      return out;
+    } else if (positional === 0) {
+      if (a === "check" || a === "verify-repo")
+        out.command = a;
+      else {
+        console.error(`unknown command: ${a}`);
+        return out;
+      }
+      positional++;
+    } else if (positional === 1 && out.command === "verify-repo") {
+      out.repoArg = a;
+      positional++;
+    } else {
+      console.error(`unexpected argument: ${a}`);
+      return out;
+    }
+  }
+  return out;
+};
+var walkSrc = (root, dir, out) => {
+  const entries = readdirSync(dir, { withFileTypes: true });
+  for (const e of entries) {
+    const full = `${dir}/${e.name}`;
+    if (e.isDirectory()) {
+      if (["node_modules", "dist", "build", ".bun", ".next"].includes(e.name))
+        continue;
+      walkSrc(root, full, out);
+    } else if (e.isFile() && e.name.endsWith(".ts")) {
+      out.push(relative(root, full));
+    }
+  }
+};
+var runCheck = async (args) => {
+  const srcDir = resolve(process.cwd(), args.src);
+  if (!existsSync(srcDir) || !statSync(srcDir).isDirectory()) {
+    console.error(c(RED, `\u2717 ${args.src}/ not found in ${process.cwd()}`));
+    return 2;
+  }
+  const tsFiles = [];
+  walkSrc(srcDir, srcDir, tsFiles);
+  const contents = new Map;
+  for (const f of tsFiles) {
+    if (/(?:^|\/)c\d{2}_/.test(f)) {
+      contents.set(f, readFileSync(`${srcDir}/${f}`, "utf8"));
+    }
+  }
+  const report = verifySama({
+    repoOwner: "(local)",
+    repoName: args.src,
+    defaultBranch: "(working tree)",
+    srcPaths: tsFiles,
+    contents
+  });
+  return printReport(report, args.json);
+};
+var runVerifyRepo = async (args) => {
+  if (!args.repoArg) {
+    console.error(c(RED, "\u2717 verify-repo requires an owner/name argument"));
+    return 2;
+  }
+  const m = /^([^\/\s]+)\/([^\/\s]+)$/.exec(args.repoArg);
+  if (!m) {
+    console.error(c(RED, `\u2717 couldn't parse '${args.repoArg}' \u2014 expected owner/name`));
+    return 2;
+  }
+  const [, owner, name] = m;
+  const repoRes = await fetch(`https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(name)}`, {
+    headers: { Accept: "application/vnd.github+json", "User-Agent": "sama-cli" }
+  });
+  if (!repoRes.ok) {
+    console.error(c(RED, `\u2717 GitHub repo lookup failed: HTTP ${repoRes.status}`));
+    if (repoRes.status === 404)
+      console.error(c(DIM, "  the repo is private, the name is wrong, or it doesn't exist"));
+    if (repoRes.status === 403)
+      console.error(c(DIM, "  GitHub rate limit hit (60/h anonymous) \u2014 wait or set up a token"));
+    return 2;
+  }
+  const repoMeta = await repoRes.json();
+  const defaultBranch = repoMeta.default_branch ?? "main";
+  const treeRes = await fetch(`https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(name)}/git/trees/${encodeURIComponent(defaultBranch)}?recursive=1`, { headers: { Accept: "application/vnd.github+json", "User-Agent": "sama-cli" } });
+  if (!treeRes.ok) {
+    console.error(c(RED, `\u2717 GitHub tree fetch failed: HTTP ${treeRes.status}`));
+    return 2;
+  }
+  const treeData = await treeRes.json();
+  const srcEntries = (treeData.tree ?? []).filter((e) => e.type === "blob" && e.path.startsWith("src/") && e.path.endsWith(".ts")).slice(0, 200);
+  const srcPaths = srcEntries.map((e) => e.path.slice("src/".length));
+  const samaPaths = srcPaths.filter((p) => /^c\d{2}_/.test(p));
+  const contents = new Map;
+  await Promise.all(samaPaths.map(async (p) => {
+    const url = `https://raw.githubusercontent.com/${encodeURIComponent(owner)}/${encodeURIComponent(name)}/${encodeURIComponent(defaultBranch)}/src/${p.split("/").map(encodeURIComponent).join("/")}`;
+    const r = await fetch(url, { headers: { "User-Agent": "sama-cli" } });
+    if (r.ok)
+      contents.set(p, await r.text());
+  }));
+  const report = verifySama({
+    repoOwner: owner,
+    repoName: name,
+    defaultBranch,
+    srcPaths,
+    contents
+  });
+  return printReport(report, args.json);
+};
+var printReport = (report, json) => {
+  if (json) {
+    process.stdout.write(JSON.stringify(report, null, 2) + `
+`);
+    return report.overallPassed ? 0 : 1;
+  }
+  const head = `${c(BOLD, "SAMA verify")} \xB7 ${report.repoSlug} \xB7 ${c(DIM, report.defaultBranch)}`;
+  console.log(head);
+  console.log(c(DIM, `  examined ${report.samaFiles} SAMA files / ${report.testFiles} tests / ${report.totalSrcFiles} src files`));
+  console.log("");
+  for (const ch of report.checks) {
+    const status = ch.passed ? c(GREEN, "\u2713 pass") : c(RED, `\u2717 ${ch.violations.length} violation${ch.violations.length === 1 ? "" : "s"}`);
+    console.log(`  ${c(BOLD, ch.letter)} \u2014 ${ch.property}: ${status} ${c(DIM, `(${ch.examined} files)`)}`);
+    for (const v of ch.violations.slice(0, 10)) {
+      console.log(`     ${c(DIM, "\xB7")} ${v.file} \u2014 ${v.detail}`);
+    }
+    if (ch.violations.length > 10) {
+      console.log(c(DIM, `     \xB7 ...and ${ch.violations.length - 10} more`));
+    }
+    if (ch.note)
+      console.log(c(YELLOW, `     ${ch.note}`));
+  }
+  console.log("");
+  if (report.overallPassed) {
+    console.log(c(GREEN, "\u2713 all four checks passed"));
+    return 0;
+  } else {
+    const failed = report.checks.filter((ch) => !ch.passed).length;
+    console.log(c(RED, `\u2717 ${failed} of 4 checks failed`));
+    return 1;
+  }
+};
+var args = parseArgs(process.argv.slice(2));
+var exitCode = 0;
+try {
+  if (args.command === "help" || args.command === null) {
+    console.log(HELP);
+    exitCode = args.command === "help" ? 0 : 2;
+  } else if (args.command === "version") {
+    console.log(`sama ${VERSION}`);
+  } else if (args.command === "check") {
+    exitCode = await runCheck(args);
+  } else if (args.command === "verify-repo") {
+    exitCode = await runVerifyRepo(args);
+  }
+} catch (e) {
+  console.error(c(RED, `\u2717 ${e instanceof Error ? e.message : String(e)}`));
+  exitCode = 2;
+}
+process.exit(exitCode);
