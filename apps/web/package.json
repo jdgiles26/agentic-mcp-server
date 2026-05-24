@@ -11,6 +11,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@prompt-forge/config": "workspace:^",
     "@prompt-forge/core": "workspace:*",
     "@prompt-forge/enhancer": "workspace:*",
     "@prompt-forge/patterns": "workspace:*",
@@ -21,9 +22,13 @@
     "zod": "^3.23.8"
   },
   "devDependencies": {
+    "@testing-library/dom": "^10.4.1",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
     "@types/node": "^22.9.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
+    "happy-dom": "^20.9.0",
     "typescript": "^5.6.3",
     "vitest": "^2.1.4"
   }

@@ -1,6 +1,12 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
+import {
+  createLocalStorageStore,
+  getActiveProviderConfig,
+  type AppConfig,
+} from "@prompt-forge/config";
+import type { ProviderConfig } from "@prompt-forge/core";
 
 type EnhanceResult = {
   rewrittenPrompt: string;
@@ -11,17 +17,39 @@ type EnhanceResult = {
 
 export function EnhanceForm() {
   const [rawPrompt, setRawPrompt] = useState("");
-  const [kind, setKind] = useState<"ollama" | "openai" | "anthropic" | "lemonade" | "llamacpp">("ollama");
-  const [baseUrl, setBaseUrl] = useState("http://localhost:11434");
-  const [model, setModel] = useState("llama3.1:8b");
-  const [apiKey, setApiKey] = useState("");
   const [reflect, setReflect] = useState(false);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<EnhanceResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [activeProvider, setActiveProvider] = useState<ProviderConfig | null>(null);
+  const [hydrated, setHydrated] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const store = createLocalStorageStore(window.localStorage);
+    const loaded = store.load();
+    if (loaded.ok) {
+      setActiveProvider(getActiveProviderConfig(loaded.value as AppConfig));
+    } else {
+      setActiveProvider(null);
+    }
+    setHydrated(true);
+  }, []);
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
+    // Re-read active provider from localStorage at submit time so that
+    // changes made in another tab are picked up without a refresh.
+    const store = createLocalStorageStore(window.localStorage);
+    const loaded = store.load();
+    const provider = loaded.ok
+      ? getActiveProviderConfig(loaded.value as AppConfig)
+      : null;
+    if (!provider) {
+      setActiveProvider(null);
+      return;
+    }
+    setActiveProvider(provider);
     setLoading(true);
     setError(null);
     setResult(null);
@@ -32,19 +60,14 @@ export function EnhanceForm() {
         body: JSON.stringify({
           rawPrompt,
           reflect,
-          provider: {
-            kind,
-            baseUrl,
-            model,
-            ...(apiKey ? { apiKey } : {}),
-          },
+          provider,
         }),
       });
       const body = await res.json();
       if (!res.ok) {
         setError(body?.error?.message ?? `HTTP ${res.status}`);
       } else {
-        setResult(body);
+        setResult(body as EnhanceResult);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "request failed");
@@ -53,7 +76,20 @@ export function EnhanceForm() {
     }
   };
 
-  const needsKey = kind === "openai" || kind === "anthropic";
+  if (!hydrated) {
+    return <form aria-busy="true" />;
+  }
+
+  if (!activeProvider) {
+    return (
+      <div className="section">
+        <p>
+          Configure a provider in /settings first.{" "}
+          <a href="/settings">Open settings</a>.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <form onSubmit={submit}>
@@ -68,38 +104,17 @@ export function EnhanceForm() {
       />
 
       <div className="section">
-        <div className="row">
-          <div>
-            <label htmlFor="kind">Provider</label>
-            <select id="kind" value={kind} onChange={(e) => setKind(e.target.value as any)}>
-              <option value="ollama">ollama</option>
-              <option value="lemonade">lemonade</option>
-              <option value="llamacpp">llamacpp</option>
-              <option value="openai">openai</option>
-              <option value="anthropic">anthropic</option>
-            </select>
-          </div>
-          <div>
-            <label htmlFor="model">Model</label>
-            <input id="model" value={model} onChange={(e) => setModel(e.target.value)} />
-          </div>
+        <div className="tags">
+          Provider: {activeProvider.kind} · {activeProvider.model} · base{" "}
+          {activeProvider.baseUrl} ·{" "}
+          <a href="/settings">Change in Settings</a>
         </div>
-        <label htmlFor="baseUrl">Base URL</label>
-        <input id="baseUrl" value={baseUrl} onChange={(e) => setBaseUrl(e.target.value)} />
-        {needsKey && (
-          <>
-            <label htmlFor="apiKey">API key</label>
-            <input
-              id="apiKey"
-              type="password"
-              value={apiKey}
-              onChange={(e) => setApiKey(e.target.value)}
-              autoComplete="off"
-            />
-          </>
-        )}
         <label>
-          <input type="checkbox" checked={reflect} onChange={(e) => setReflect(e.target.checked)} />{" "}
+          <input
+            type="checkbox"
+            checked={reflect}
+            onChange={(e) => setReflect(e.target.checked)}
+          />{" "}
           Run reflection pass (second LLM call)
         </label>
       </div>
@@ -119,7 +134,8 @@ export function EnhanceForm() {
       {result && (
         <div className="section">
           <div className="tags">
-            taskKind: {result.taskKind} · patterns: {result.selectedPatterns.join(", ")} · reflected:{" "}
+            taskKind: {result.taskKind} · patterns:{" "}
+            {result.selectedPatterns.join(", ")} · reflected:{" "}
             {String(result.reflected)}
           </div>
           <pre>{result.rewrittenPrompt}</pre>

@@ -22,3 +22,12 @@ pre { background: #15181c; border: 1px solid #2a2f35; padding: 16px; border-radi
 .error { color: #ff6b6b; }
 .tags { font-size: 12px; color: #9aa0a6; margin-top: 4px; }
 .section { margin-top: 24px; }
+.site-nav {
+  display: flex; gap: 16px;
+  padding: 12px 24px; border-bottom: 1px solid #2a2f35; background: #0e1115;
+}
+.site-nav a {
+  color: #c8ccd1; text-decoration: none; font-size: 14px;
+}
+.site-nav a:hover { color: #ffffff; }
+h2 { font-size: 16px; margin: 0 0 8px; color: #c8ccd1; }

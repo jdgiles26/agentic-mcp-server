@@ -6,7 +6,13 @@ export const metadata = { title: "PromptForge", description: "Rewrite prompts wi
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body>
+        <nav className="site-nav">
+          <a href="/">Home</a>
+          <a href="/settings">Settings</a>
+        </nav>
+        {children}
+      </body>
     </html>
   );
 }

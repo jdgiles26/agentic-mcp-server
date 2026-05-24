@@ -1,6 +1,21 @@
 #!/usr/bin/env node
-import { startHttpServer } from "../dist/http.js";
-const port = Number(process.env.PORT ?? 8787);
-startHttpServer({ port }).then((h) => {
-  process.stderr.write(`promptforge mcp http listening on http://127.0.0.1:${h.port}/mcp\n`);
+// Spawn tsx against the TS entrypoint so the shim works without a prior build step.
+import { spawn } from "node:child_process";
+import { fileURLToPath } from "node:url";
+import { createRequire } from "node:module";
+
+const require = createRequire(import.meta.url);
+const tsxBin = require.resolve("tsx/package.json").replace(/package\.json$/, "dist/cli.mjs");
+const srcPath = fileURLToPath(new URL("../src/http.ts", import.meta.url));
+
+const child = spawn(process.execPath, [tsxBin, srcPath, ...process.argv.slice(2)], {
+  stdio: "inherit",
+});
+
+child.on("exit", (code, signal) => {
+  if (signal) {
+    process.kill(process.pid, signal);
+  } else {
+    process.exit(code ?? 0);
+  }
 });
