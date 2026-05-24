@@ -1,4 +1,5 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
+import { createLogger } from "@prompt-forge/core";
 import { handleMcpRequest, type ProviderClientFactory } from "./server.js";
 
 export type HttpServerOptions = {
@@ -245,8 +246,16 @@ if (import.meta.url === __pathToFileURL(process.argv[1] ?? "").href) {
   const port = Number(process.env.PORT ?? 8787);
   const host = process.env.HOST ?? "127.0.0.1";
   const authToken = process.env.PROMPTFORGE_MCP_TOKEN;
-  startHttpServer({ port, host, ...(authToken ? { authToken } : {}) }).then((h) => {
-    const auth = authToken ? " (auth required)" : "";
-    process.stderr.write(`promptforge mcp http listening on http://${host}:${h.port}/mcp${auth}\n`);
-  });
+  const log = createLogger("mcp.http");
+  startHttpServer({ port, host, ...(authToken ? { authToken } : {}) })
+    .then((h) => {
+      log.info("listening", {
+        url: `http://${host}:${h.port}/mcp`,
+        authRequired: Boolean(authToken),
+      });
+    })
+    .catch((err: unknown) => {
+      log.error("startup failed", { error: err instanceof Error ? err.message : String(err) });
+      process.exit(1);
+    });
 }

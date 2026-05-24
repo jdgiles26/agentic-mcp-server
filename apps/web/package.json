@@ -16,7 +16,6 @@
     "@prompt-forge/config": "workspace:^",
     "@prompt-forge/core": "workspace:*",
     "@prompt-forge/enhancer": "workspace:*",
-    "@prompt-forge/patterns": "workspace:*",
     "@prompt-forge/providers": "workspace:*",
     "next": "^15.0.3",
     "react": "^19.0.0",

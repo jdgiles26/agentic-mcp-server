@@ -5,7 +5,6 @@ import {
 } from "@prompt-forge/core";
 import { enhance } from "@prompt-forge/enhancer";
 import { createProviderClient, type ProviderClient } from "@prompt-forge/providers";
-import { z } from "zod";
 
 const BodySchema = EnhancementRequestSchema.extend({ provider: ProviderConfigSchema });
 

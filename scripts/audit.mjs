@@ -4,8 +4,8 @@
 // Severity: HIGH (broken claim or wiring), MED (stale fact), LOW (nit).
 
 import { execSync } from "node:child_process";
-import { existsSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
-import { dirname, join, relative, resolve } from "node:path";
+import { existsSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -14,8 +14,6 @@ const findings = [];
 const add = (severity, area, message, evidence) => {
   findings.push({ severity, area, message, evidence });
 };
-
-const rel = (p) => relative(ROOT, p);
 
 const readLines = (path) => readFileSync(path, "utf8").split("\n");
 
@@ -55,15 +53,22 @@ for (const sub of ["packages", "apps"]) {
 // --- 2. Imports per workspace (real) ----------------------------------------
 
 const importSitesFor = (pkgPath) => {
-  const files = walk(join(pkgPath, "src"), (p) =>
-    (p.endsWith(".ts") || p.endsWith(".tsx")) && !p.endsWith(".test.ts") && !p.endsWith(".test.tsx"),
+  const files = walk(
+    join(pkgPath, "src"),
+    (p) =>
+      (p.endsWith(".ts") || p.endsWith(".tsx")) &&
+      !p.endsWith(".test.ts") &&
+      !p.endsWith(".test.tsx"),
   );
   const imported = new Set();
   for (const f of files) {
     const lines = readLines(f);
     for (let i = 0; i < lines.length; i++) {
-      const m = lines[i].match(/from\s+["']([^"'\.][^"']*)["']/);
-      if (m) imported.add(m[1].startsWith("@") ? m[1].split("/").slice(0, 2).join("/") : m[1].split("/")[0]);
+      const m = lines[i].match(/from\s+["']([^"'.][^"']*)["']/);
+      if (m)
+        imported.add(
+          m[1].startsWith("@") ? m[1].split("/").slice(0, 2).join("/") : m[1].split("/")[0],
+        );
     }
   }
   return imported;
@@ -71,9 +76,26 @@ const importSitesFor = (pkgPath) => {
 
 // --- 3. Unused / undeclared deps --------------------------------------------
 
-const ALWAYS_USED = new Set(["typescript", "vitest", "tsx", "@types/node", "@types/react", "@types/react-dom", "happy-dom", "@playwright/test", "@testing-library/react", "@testing-library/dom", "@testing-library/jest-dom", "@biomejs/biome", "next", "react-dom"]);
+const ALWAYS_USED = new Set([
+  "typescript",
+  "vitest",
+  "tsx",
+  "@types/node",
+  "@types/react",
+  "@types/react-dom",
+  "happy-dom",
+  "@playwright/test",
+  "@testing-library/react",
+  "@testing-library/dom",
+  "@testing-library/jest-dom",
+  "@biomejs/biome",
+  "next",
+  "react-dom",
+]);
 
-const stripAnsi = (s) => s.replace(/\x1b\[[0-9;]*m/g, "");
+const ESC = String.fromCharCode(27); // ESC, the lead byte of ANSI escapes
+const ANSI_RE = new RegExp(`${ESC}\\[[0-9;]*m`, "g");
+const stripAnsi = (s) => s.replace(ANSI_RE, "");
 
 for (const ws of workspaces) {
   if (ws.rel === "apps/web") continue; // Next.js scans files; skip — handled below
@@ -95,14 +117,21 @@ for (const ws of workspaces) {
 {
   const ws = workspaces.find((w) => w.rel === "apps/web");
   if (ws) {
-    const files = walk(join(ws.path, "src"), (p) =>
-      (p.endsWith(".ts") || p.endsWith(".tsx")) && !p.endsWith(".test.ts") && !p.endsWith(".test.tsx"),
+    const files = walk(
+      join(ws.path, "src"),
+      (p) =>
+        (p.endsWith(".ts") || p.endsWith(".tsx")) &&
+        !p.endsWith(".test.ts") &&
+        !p.endsWith(".test.tsx"),
     );
     const imported = new Set();
     for (const f of files) {
       for (const line of readLines(f)) {
-        const m = line.match(/from\s+["']([^"'\.][^"']*)["']/);
-        if (m) imported.add(m[1].startsWith("@") ? m[1].split("/").slice(0, 2).join("/") : m[1].split("/")[0]);
+        const m = line.match(/from\s+["']([^"'.][^"']*)["']/);
+        if (m)
+          imported.add(
+            m[1].startsWith("@") ? m[1].split("/").slice(0, 2).join("/") : m[1].split("/")[0],
+          );
       }
     }
     for (const dep of Object.keys(ws.deps)) {
@@ -177,7 +206,9 @@ const patternsDoc = readFileSync(join(ROOT, "docs/patterns.md"), "utf8");
 
 let testTotals = null;
 try {
-  const out = execSync(`cd "${ROOT}" && pnpm -r --workspace-concurrency=1 test 2>&1`, { encoding: "utf8" });
+  const out = execSync(`cd "${ROOT}" && pnpm -r --workspace-concurrency=1 test 2>&1`, {
+    encoding: "utf8",
+  });
   const clean = stripAnsi(out);
   const matches = [...clean.matchAll(/Tests\s+(\d+)\s+passed/g)];
   testTotals = matches.reduce((a, m) => a + Number(m[1]), 0);
@@ -200,8 +231,11 @@ if (testTotals !== null) {
 // --- 6. Script-name references in docs that don't exist in any package -----
 
 const allScripts = new Set();
-for (const ws of workspaces) for (const s of Object.keys(ws.scripts)) allScripts.add(`${ws.name}:${s}`);
-for (const s of Object.keys(JSON.parse(readFileSync(join(ROOT, "package.json"), "utf8")).scripts ?? {})) {
+for (const ws of workspaces)
+  for (const s of Object.keys(ws.scripts)) allScripts.add(`${ws.name}:${s}`);
+for (const s of Object.keys(
+  JSON.parse(readFileSync(join(ROOT, "package.json"), "utf8")).scripts ?? {},
+)) {
   allScripts.add(`root:${s}`);
 }
 
@@ -211,7 +245,9 @@ for (const doc of docFiles) {
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
     // pnpm --filter @x test:watch  → pkg=@x script=test:watch
-    const m1 = line.match(/pnpm\s+--filter\s+(@?[a-z0-9\/-]+)\s+(test[:a-z]*|format|build|dev|typecheck)\b/);
+    const m1 = line.match(
+      /pnpm\s+--filter\s+(@?[a-z0-9/-]+)\s+(test[:a-z]*|format|build|dev|typecheck)\b/,
+    );
     if (m1) {
       const [, pkg, script] = m1;
       if (!allScripts.has(`${pkg}:${script}`)) {
@@ -244,7 +280,9 @@ for (const doc of docFiles) {
 const providersDoc = readFileSync(join(ROOT, "docs/providers.md"), "utf8");
 const factorySrc = readFileSync(join(ROOT, "packages/providers/src/factory.ts"), "utf8");
 const baseUrlsMatch = factorySrc.match(/DEFAULT_BASE_URLS[^{]*\{([^}]+)\}/s);
-const codeKinds = baseUrlsMatch ? [...baseUrlsMatch[1].matchAll(/^\s*(\w+):/gm)].map((m) => m[1]) : [];
+const codeKinds = baseUrlsMatch
+  ? [...baseUrlsMatch[1].matchAll(/^\s*(\w+):/gm)].map((m) => m[1])
+  : [];
 for (const kind of codeKinds) {
   if (!new RegExp(`\\b${kind}\\b`).test(providersDoc)) {
     add(
@@ -282,10 +320,16 @@ if (!/\bmcp\b/i.test(archDoc)) {
 
 if (/web\[apps\/web\]\s*-->\s*patterns/.test(archDoc)) {
   // is patterns actually imported by any web src file?
-  const webFiles = walk(join(ROOT, "apps/web/src"), (p) =>
-    (p.endsWith(".ts") || p.endsWith(".tsx")) && !p.endsWith(".test.ts") && !p.endsWith(".test.tsx"),
+  const webFiles = walk(
+    join(ROOT, "apps/web/src"),
+    (p) =>
+      (p.endsWith(".ts") || p.endsWith(".tsx")) &&
+      !p.endsWith(".test.ts") &&
+      !p.endsWith(".test.tsx"),
   );
-  const importsPatterns = webFiles.some((f) => readFileSync(f, "utf8").includes("@prompt-forge/patterns"));
+  const importsPatterns = webFiles.some((f) =>
+    readFileSync(f, "utf8").includes("@prompt-forge/patterns"),
+  );
   if (!importsPatterns) {
     add(
       "HIGH",
@@ -298,12 +342,22 @@ if (/web\[apps\/web\]\s*-->\s*patterns/.test(archDoc)) {
 
 // --- 10. Logger wiring -----------------------------------------------------
 
-const loggerCallsites = walk(join(ROOT, "packages"), (p) =>
-  (p.endsWith(".ts") || p.endsWith(".tsx")) && !p.endsWith(".test.ts") && !p.endsWith(".test.tsx"),
+const loggerCallsites = walk(
+  join(ROOT, "packages"),
+  (p) =>
+    (p.endsWith(".ts") || p.endsWith(".tsx")) &&
+    !p.endsWith(".test.ts") &&
+    !p.endsWith(".test.tsx"),
 )
-  .concat(walk(join(ROOT, "apps"), (p) =>
-    (p.endsWith(".ts") || p.endsWith(".tsx")) && !p.endsWith(".test.ts") && !p.endsWith(".test.tsx"),
-  ))
+  .concat(
+    walk(
+      join(ROOT, "apps"),
+      (p) =>
+        (p.endsWith(".ts") || p.endsWith(".tsx")) &&
+        !p.endsWith(".test.ts") &&
+        !p.endsWith(".test.tsx"),
+    ),
+  )
   .filter((p) => !p.endsWith("logger.ts"))
   .filter((p) => readFileSync(p, "utf8").includes("createLogger("));
 
@@ -311,7 +365,7 @@ if (loggerCallsites.length === 0) {
   add(
     "MED",
     "logger",
-    'docs/development.md:51 says "Use createLogger(\'scope-name\'). Never console.log directly outside the logger." — but no production code actually calls createLogger() anywhere',
+    "docs/development.md:51 says \"Use createLogger('scope-name'). Never console.log directly outside the logger.\" — but no production code actually calls createLogger() anywhere",
     "packages/core/src/logger.ts is exported but unwired",
   );
 }
@@ -319,11 +373,14 @@ if (loggerCallsites.length === 0) {
 // --- 11. Tailwind / Zustand claims -----------------------------------------
 
 const tddDoc = readFileSync(join(ROOT, "docs/tdd-strategy.md"), "utf8");
-const hasTailwindCode = walk(ROOT, (p) =>
-  p.endsWith(".ts") || p.endsWith(".tsx") || p.endsWith(".css") || p.endsWith(".mjs"),
+const hasTailwindCode = walk(
+  ROOT,
+  (p) => p.endsWith(".ts") || p.endsWith(".tsx") || p.endsWith(".css") || p.endsWith(".mjs"),
 ).some((p) => /tailwind|@tailwind/i.test(readFileSync(p, "utf8")));
-const hasZustand = walk(ROOT, (p) => p.endsWith(".ts") || p.endsWith(".tsx") || p.endsWith(".json"))
-  .some((p) => p.includes("/node_modules/") ? false : /zustand/i.test(readFileSync(p, "utf8")));
+const hasZustand = walk(
+  ROOT,
+  (p) => p.endsWith(".ts") || p.endsWith(".tsx") || p.endsWith(".json"),
+).some((p) => (p.includes("/node_modules/") ? false : /zustand/i.test(readFileSync(p, "utf8"))));
 
 if (/Tailwind/.test(tddDoc) && !hasTailwindCode) {
   add(
@@ -423,4 +480,6 @@ md += `Things this script does NOT check: prose accuracy of directive text, merm
 md += `whether tests actually test the right thing, runtime behavior of the live system.\n`;
 
 writeFileSync(join(ROOT, "DRIFT.md"), md);
-console.error(`DRIFT.md written — ${findings.length} findings (${groups.HIGH.length}H/${groups.MED.length}M/${groups.LOW.length}L)`);
+console.error(
+  `DRIFT.md written — ${findings.length} findings (${groups.HIGH.length}H/${groups.MED.length}M/${groups.LOW.length}L)`,
+);

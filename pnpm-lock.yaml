@@ -63,9 +63,6 @@ importers:
       '@prompt-forge/enhancer':
         specifier: workspace:*
         version: link:../../packages/enhancer
-      '@prompt-forge/patterns':
-        specifier: workspace:*
-        version: link:../../packages/patterns
       '@prompt-forge/providers':
         specifier: workspace:*
         version: link:../../packages/providers
@@ -166,9 +163,6 @@ importers:
       '@prompt-forge/core':
         specifier: workspace:*
         version: link:../core
-      zod:
-        specifier: ^3.23.8
-        version: 3.25.76
     devDependencies:
       typescript:
         specifier: ^5.6.3

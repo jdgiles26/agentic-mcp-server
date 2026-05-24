@@ -15,16 +15,14 @@
 | Component        | `packages/providers/src/*.test.ts`       | <1s   | Provider clients vs scripted fetch — exact request shape, exact error mapping.    |
 | Integration      | `apps/web/src/app/api/**/*.test.ts`      | <2s   | Route handlers wired to real providers (with stubbed global fetch). End-to-end serialization. |
 | UI               | `apps/web/src/components/*.test.tsx`     | <3s   | RTL — form validation, submit gating, success/error rendering.   |
-| E2E (optional)   | `apps/web/e2e/` (Playwright)             | 10–30s| Real browser flow against a real local Ollama instance. Run on demand.            |
+| E2E (Playwright) | `apps/web/e2e/` against the built app    | 1–2s  | Real chromium browser. `/api/enhance` is mocked via `page.route` so no LLM is contacted. To exercise a real provider end-to-end, use the env-gated `LIVE_*` tests in `packages/providers/src/live.test.ts`. |
 
 ## What we don't test (and why)
 
 | Skipped                                   | Reason                                                        |
 | ----------------------------------------- | ------------------------------------------------------------- |
-| Tailwind v4 class output                  | Tailwind has its own test suite; we'd be testing the framework. |
-| Next.js Server Component rendering        | Reserved for E2E; unit-testing RSC adds setup with low payoff.|
-| Zustand internals                         | Library-level concern. We test the *behavior* of the store via the form test. |
-| Real LLM output content                   | Non-deterministic. We assert the request shape, not the response semantics. |
+| Next.js Server Component rendering        | Reserved for E2E; unit-testing RSC adds setup with low payoff. The Playwright spec covers the hydrated client component (`apps/web/e2e/enhance.spec.ts`). |
+| Real LLM output content                   | Non-deterministic. We assert the request shape, not the response semantics. The `LIVE_*` env-gated tests are the only place that talks to a real LLM, and they only assert that *some* content came back. |
 
 ## No-mocks policy
 
@@ -59,8 +57,11 @@ make test
 pnpm --filter @prompt-forge/patterns test
 pnpm --filter @prompt-forge/enhancer test
 
-# Watch mode for one package
-pnpm --filter @prompt-forge/enhancer test:watch
+# Watch mode for one package (the dedicated test:watch script lives only on
+# @prompt-forge/core today; for the others, invoke vitest directly without the
+# `run` arg)
+pnpm --filter @prompt-forge/core test:watch
+pnpm --filter @prompt-forge/enhancer exec vitest
 
 # With coverage (core only — others mirror the same pattern)
 pnpm --filter @prompt-forge/core exec vitest run --coverage

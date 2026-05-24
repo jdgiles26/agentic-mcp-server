@@ -8,7 +8,7 @@ import {
   setActiveProvider,
   upsertProvider,
 } from "@prompt-forge/config";
-import { type ProviderConfig, ProviderConfigSchema, type ProviderKind } from "@prompt-forge/core";
+import { ProviderConfigSchema, type ProviderKind } from "@prompt-forge/core";
 import { DEFAULT_BASE_URLS } from "@prompt-forge/providers";
 import { useEffect, useMemo, useState } from "react";
 

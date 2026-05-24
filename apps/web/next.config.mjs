@@ -9,7 +9,6 @@ const nextConfig = {
     "@prompt-forge/config",
     "@prompt-forge/core",
     "@prompt-forge/enhancer",
-    "@prompt-forge/patterns",
     "@prompt-forge/providers",
   ],
   webpack(config) {

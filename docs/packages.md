@@ -138,7 +138,60 @@ anthropic  https://api.anthropic.com        (uses native /v1/messages)
 
 **Purpose.** The Next.js 15 App Router web UI.
 
+**Routes.**
+
+- `GET /` — server component; renders `<EnhanceForm/>` (`src/app/page.tsx`).
+- `GET /settings` — server component; renders `<ProviderSettings/>` (`src/app/settings/page.tsx`).
+- `POST /api/enhance` — calls `handleEnhanceRequest` (`src/app/api/enhance/handler.ts:30`). Status mapping: `PROVIDER_UNREACHABLE`/`PROVIDER_TIMEOUT` → 502; `VALIDATION` → 400; else → 500. `cause` is stripped before serialization (`handler.ts:39-46`).
+- `POST /api/providers/test` — `handleProviderTestRequest`. Sends a 16-token "ping" chat to verify reachability.
+
 **Tests.**
 
-- `app/api/enhance/route.test.ts` — direct invocation of the route handler with a real `Request` object and a stubbed global fetch. Covers malformed JSON (400), invalid provider config (400), short prompt (400), upstream unreachable (502), and happy path with the rewritten prompt extracted from the LLM-shaped response.
-- `components/enhance-form.test.tsx` — RTL test that hydrates from localStorage, asserts the "no provider configured" alert, the disabled submit button when invalid, the successful end-to-end submit (stubbed `/api/enhance`), and the error rendering path.
+- `app/api/enhance/route.test.ts` — 6 cases: malformed JSON (400), invalid request shape (400), missing provider (400), happy path with rewritten prompt, `cause`-stripping on errors, `temperature` forwarding.
+- `app/api/providers/test/handler.test.ts` — 7 cases including the `PROVIDER_AUTH → 500` mapping and the `cause`-strip assertion.
+- `components/enhance-form.test.tsx` — 5 RTL tests via happy-dom + `jsx: "automatic"`.
+- `e2e/enhance.spec.ts` — 4 Playwright tests against the built app. `/api/enhance` is mocked via `page.route` (no real LLM).
+
+---
+
+## `apps/mcp`
+
+**Purpose.** Model Context Protocol server. JSON-RPC 2.0 over **two** transports (stdio + HTTP). Single tool: `enhance_prompt`. Each catalog pattern is also exposed as an MCP resource at `promptforge://patterns/<slug>`. Pure orchestration — every chat call goes through `@prompt-forge/enhancer` and `@prompt-forge/providers`; the server has no LLM knowledge of its own.
+
+**Public API.**
+
+| Symbol | File:line |
+| --- | --- |
+| `handleMcpRequest(payload, deps?)` — protocol-agnostic JSON-RPC dispatcher | `src/server.ts:112-224` |
+| `JsonRpcRequest`, `JsonRpcResponse` types | `src/server.ts:18-30` |
+| `ProviderClientFactory` type | `src/server.ts:12` |
+| `runStdioServer(opts?)` — NDJSON over stdin/stdout | `src/stdio.ts:11-39` |
+| `startHttpServer(opts?)` — POST JSON, POST SSE, GET SSE, OPTIONS | `src/http.ts:81-240` |
+| Bin shims (spawn `tsx` against the TS sources) | `bin/stdio.mjs`, `bin/http.mjs` |
+
+**Tool: `enhance_prompt`.** Provider config is supplied per call. Input schema declared at `src/server.ts:51-87`. Required: `rawPrompt` (≥10 chars), `provider`. Optional: `taskKind`, `maxPatterns` (1–10), `pinnedSlugs`, `excludedSlugs`, `reflect`, `temperature` (0–2).
+
+**Resources.** `resources/list` enumerates all 22 catalog entries (`src/server.ts:177-186`). `resources/read promptforge://patterns/<slug>` returns the directive markdown plus a source link (`src/server.ts:188-212`). Unknown slug or non-`promptforge://` URI → `-32602`.
+
+**HTTP transport — environment knobs.**
+
+| Var | Default | Effect |
+| --- | --- | --- |
+| `PORT` | `8787` | bind port |
+| `HOST` | `127.0.0.1` | bind address — set to `0.0.0.0` only with `PROMPTFORGE_MCP_TOKEN` set |
+| `PROMPTFORGE_MCP_TOKEN` | unset | when set, every POST and GET requires `Authorization: Bearer <token>` or returns 401 `-32001`. OPTIONS preflight is never gated. |
+
+**HTTP transport — fixed behavior.**
+
+- 256 KiB POST body limit (configurable via `maxBodyBytes`); over → 413 `-32600` (`src/http.ts:42-52, 167-178`).
+- CORS preflight on OPTIONS (`src/http.ts:96-104`); `access-control-allow-origin` on every response (default `*`, configurable).
+- POST with `Accept: text/event-stream` returns the response as a single SSE `event: message` frame (`src/http.ts:212-223`).
+- GET with `Accept: text/event-stream` opens an SSE channel with an `Mcp-Session-Id` header and a 15 s keep-alive (`src/http.ts:106-141`).
+
+**Tests.**
+
+- `src/server.test.ts` — 12 cases: `initialize` advertises `{tools:{}, resources:{}}`, `tools/list` lists `enhance_prompt`, `tools/call` happy path, malformed JSON-RPC → -32600, unknown tool/method → -32601, `resources/list` count + URIs, `resources/read` valid slug + unknown slug + non-promptforge scheme.
+- `src/http.test.ts` — 18 cases: 405 on GET without SSE, 404 on wrong path, 400 on bad JSON, 413 over body limit, exact-at-limit accepts, CORS preflight + every-response header, POST/JSON happy path, POST/SSE branch, GET SSE channel + `Mcp-Session-Id`, bearer auth on POST + GET (missing/wrong/right), OPTIONS never gated, no-token = no auth required.
+- `src/stdio.test.ts` — 3 cases: NDJSON round-trip, notifications suppressed, parse-error line.
+
+**stdio caveat.** No auth gate. stdio inherits the local user's process trust boundary — the assumption is that anyone who can write to the server's stdin is already inside the trust circle.

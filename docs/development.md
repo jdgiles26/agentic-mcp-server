@@ -5,7 +5,7 @@
 | Tool      | Version            |
 | --------- | ------------------ |
 | Node.js   | 20.11+             |
-| pnpm      | 9.12.0             |
+| pnpm      | 10.x (see root `package.json` `packageManager` for the pinned version) |
 | Make      | any (optional)     |
 
 For local LLM development, install at least one of: Ollama, Lemonade.app, or llama.cpp's `llama-server`.
@@ -15,10 +15,10 @@ For local LLM development, install at least one of: Ollama, Lemonade.app, or lla
 ```bash
 git clone <repo>
 cd prompt-forge
-pnpm install
-pnpm typecheck
-pnpm test
-pnpm dev          # http://localhost:3000
+make install
+make typecheck
+make test
+make dev          # http://localhost:3000
 ```
 
 Open `/settings`, configure a provider, click **Test connection**, then go to `/` and submit a prompt.
@@ -85,14 +85,16 @@ No AI-generated walls of text. The review surface should fit on one screen.
 # Run a single test file
 pnpm --filter @prompt-forge/enhancer exec vitest run src/enhance.test.ts
 
-# Watch one package's tests
-pnpm --filter @prompt-forge/enhancer test:watch
+# Watch one package's tests (only @prompt-forge/core ships a test:watch script today;
+# for the others, invoke vitest directly without the `run` arg)
+pnpm --filter @prompt-forge/core test:watch
+pnpm --filter @prompt-forge/enhancer exec vitest
 
 # Build everything in the dependency-correct order
-pnpm build
+make build
 
 # Format the whole repo (Biome)
-pnpm format
+make format
 
 # Wipe all caches
 make clean

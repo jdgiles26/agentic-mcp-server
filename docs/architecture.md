@@ -1,6 +1,8 @@
 # Architecture
 
-## Request flow
+> Authoritative version: `ARCHITECTURE.md` at the repo root. That file cites file:line for every claim. This document is the prose overview.
+
+## Request flow — Web
 
 ```mermaid
 sequenceDiagram
@@ -20,7 +22,7 @@ sequenceDiagram
   Enhancer->>Patterns: classifyTask(rawPrompt)
   Enhancer->>Patterns: selectPatterns(rawPrompt, taskKind, opts)
   Enhancer->>Provider: client.chat(metaPromptMessages)
-  Provider->>LLM: HTTP POST /chat/completions or /api/chat
+  Provider->>LLM: HTTP POST /chat/completions or /api/chat or /v1/messages
   LLM-->>Provider: ChatResponse
   Provider-->>Enhancer: Result<ChatResponse>
   alt reflect = true
@@ -29,19 +31,79 @@ sequenceDiagram
     LLM-->>Provider: ChatResponse
   end
   Enhancer-->>API: EnhancementResponse
-  API-->>Web: JSON
+  API-->>Web: JSON (cause stripped from errors)
   Web-->>User: rendered enhanced prompt
 ```
+
+## Request flow — MCP
+
+```mermaid
+sequenceDiagram
+  participant Client as MCP client (Claude Desktop / Code / curl)
+  participant Transport as stdio.ts OR http.ts
+  participant Handler as handleMcpRequest
+  participant Enhancer as @prompt-forge/enhancer
+  participant Patterns as @prompt-forge/patterns
+  participant Provider as @prompt-forge/providers
+  participant LLM
+
+  Client->>Transport: JSON-RPC 2.0 frame
+
+  Note over Transport: HTTP only — gates run in order:
+  alt PROMPTFORGE_MCP_TOKEN is set
+    Transport->>Transport: Authorization: Bearer <token>?
+    alt missing or wrong
+      Transport-->>Client: 401 { error code -32001 }
+    end
+  end
+  alt body > maxBodyBytes (default 256 KiB)
+    Transport-->>Client: 413 { error code -32600 }
+  end
+
+  Transport->>Handler: handleMcpRequest(payload)
+  Handler->>Handler: isJsonRpc check, then dispatch by method
+
+  alt method = "tools/call" name = "enhance_prompt"
+    Handler->>Handler: EnhanceArgsSchema.safeParse
+    Handler->>Provider: factory(provider) — createProviderClient by default
+    Handler->>Enhancer: enhance(client, request)
+    Enhancer->>Patterns: classify + select
+    Enhancer->>Provider: client.chat (1× draft, +1× if reflect)
+    Provider->>LLM: HTTP fetch
+    LLM-->>Provider: response
+    Provider-->>Enhancer: Result
+    Enhancer-->>Handler: EnhancementResponse
+  else method = "resources/list"
+    Handler-->>Transport: { resources: [...22 catalog entries] }
+  else method = "resources/read"
+    Handler->>Patterns: findPatternBySlug(slug from uri)
+    Handler-->>Transport: { contents: [{ markdown directive }] }
+  end
+
+  alt HTTP + Accept: text/event-stream
+    Transport-->>Client: event: message\ndata: <json>\n\n
+  else HTTP + Accept: application/json
+    Transport-->>Client: 200 application/json
+  else stdio
+    Transport-->>Client: NDJSON line on stdout
+  end
+```
+
+GET `/mcp` opens an SSE channel separately for server → client notifications (`apps/mcp/src/http.ts:106-141`); the current server uses it only for keep-alives.
 
 ## Dependency graph
 
 ```mermaid
 graph TD
   web[apps/web] --> core
+  web --> config
   web --> enhancer
   web --> providers
-  web --> config
-  web --> patterns
+
+  mcp[apps/mcp] --> core
+  mcp --> enhancer
+  mcp --> patterns
+  mcp --> providers
 
   enhancer --> core
   enhancer --> patterns
@@ -52,7 +114,7 @@ graph TD
   config --> core
 ```
 
-`core` is the only package no other package depends on for its own dependencies — every other package imports types and the `Result` helpers from it.
+`core` is the only package no other package depends on for its own dependencies — every other package imports types and the `Result` helpers from it. `apps/web` does **not** import `patterns` directly; the enhancer is the only caller of the pattern catalog from the web surface. `apps/mcp` imports `patterns` directly because `resources/list` and `resources/read` enumerate the catalog without going through the enhancer.
 
 ## Why this shape
 

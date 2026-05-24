@@ -1,5 +1,6 @@
 import { createInterface } from "node:readline";
 import type { Readable, Writable } from "node:stream";
+import { createLogger } from "@prompt-forge/core";
 import { handleMcpRequest, type JsonRpcResponse, type ProviderClientFactory } from "./server.js";
 
 export type StdioOptions = {
@@ -14,7 +15,7 @@ export const runStdioServer = async (opts: StdioOptions = {}): Promise<void> => 
   const rl = createInterface({ input: stdin, crlfDelay: Infinity });
 
   const writeLine = (resp: JsonRpcResponse) => {
-    stdout.write(JSON.stringify(resp) + "\n");
+    stdout.write(`${JSON.stringify(resp)}\n`);
   };
 
   for await (const line of rl) {
@@ -41,8 +42,10 @@ export const runStdioServer = async (opts: StdioOptions = {}): Promise<void> => 
 import { pathToFileURL as __pathToFileURL } from "node:url";
 
 if (import.meta.url === __pathToFileURL(process.argv[1] ?? "").href) {
+  // stdio reserves stdout for JSON-RPC frames; logger.error() writes to stderr only.
+  const log = createLogger("mcp.stdio");
   runStdioServer().catch((e) => {
-    process.stderr.write(`stdio server error: ${e instanceof Error ? e.message : String(e)}\n`);
+    log.error("stdio server error", { error: e instanceof Error ? e.message : String(e) });
     process.exit(1);
   });
 }
