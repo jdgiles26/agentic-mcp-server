@@ -1,42 +1,99 @@
 # PromptForge
 
 Rewrites coding-assistant prompts using strategies from
-[awesome-agentic-patterns](https://github.com/nibzard/awesome-agentic-patterns).
-Paste a prompt, PromptForge classifies the task, selects relevant agentic patterns,
-and asks your configured LLM to produce a sharper, structured rewrite.
+[awesome-agentic-patterns](https://github.com/nibzard/agentic-patterns).
+Paste a prompt, PromptForge classifies the task, selects the best agentic
+patterns from a catalog of 22, and asks your configured LLM to rewrite it.
 
-Available as a **web app** *and* an **MCP server** (stdio + HTTP), so the same
-enhancer pipeline can be called from a browser or from Claude Desktop / Claude Code.
+Available as a **web app** and an **MCP server** (stdio + HTTP). Same enhancer
+pipeline behind both surfaces.
 
 | Local providers              | Cloud providers   |
 | ---------------------------- | ----------------- |
 | Ollama (port 11434)          | OpenAI API        |
-| Lemonade.app (port 13305)    | Anthropic API     |
+| Lemonade (port 13305)        | Anthropic API (native /v1/messages) |
 | llama.cpp server (port 8080) |                   |
+
+## Status
+
+- 169 hermetic tests across 7 packages, all green
+- Typecheck + build clean
+- biome lint configured (some style findings remain, not blocking)
+- CI workflow at `.github/workflows/ci.yml`
+
+## One-time setup
+
+```bash
+pnpm install                # bootstraps the workspace
+```
+
+Optional: install one of [Ollama](https://ollama.com),
+[Lemonade](https://lemonade-server.ai), or llama.cpp's `llama-server`
+locally if you want to drive the rewriter with a local model.
 
 ## Run
 
+### Web app
+
 ```bash
-pnpm install
-pnpm test           # 90 tests, hermetic (no live LLM required)
-pnpm typecheck
-
-# Web app
-pnpm --filter @prompt-forge/web dev    # http://localhost:3000
-
-# MCP server — HTTP (default port 8787)
-pnpm --filter @prompt-forge/mcp start:http
-
-# MCP server — stdio (for Claude Desktop / Claude Code)
-pnpm --filter @prompt-forge/mcp start:stdio
+make dev
+# or: pnpm --filter @prompt-forge/web dev
 ```
 
-## MCP usage
+Open <http://localhost:3000>.
 
-The MCP server exposes one tool: **`enhance_prompt`**. Provider config is passed
-per-call (no server-side keys), so you can drive any provider from any client.
+1. Click **Settings** in the header.
+2. Pick a provider (ollama / lemonade / llamacpp / openai / anthropic),
+   fill in baseUrl + model + (for openai/anthropic) apiKey, click **Save**.
+3. Click **Test connection** under the saved provider — confirms the
+   endpoint accepts a tiny "ping" chat.
+4. Pick the active provider with the radio.
+5. Back at `/`, paste your raw prompt and click **Rewrite prompt**.
 
-### Claude Code / Desktop (stdio)
+Config is stored in `localStorage` under the key `promptforge:config` —
+nothing leaves your browser except the chat call to your configured
+provider.
+
+### MCP server — HTTP
+
+```bash
+make dev-mcp-http
+# or: pnpm --filter @prompt-forge/mcp start:http
+# listens on http://127.0.0.1:8787/mcp (set PORT to override)
+```
+
+Send any JSON-RPC 2.0 request with `content-type: application/json`. Try:
+
+```bash
+curl -s -X POST http://127.0.0.1:8787/mcp \
+  -H 'content-type: application/json' -d '{
+    "jsonrpc":"2.0","id":1,"method":"tools/call",
+    "params":{
+      "name":"enhance_prompt",
+      "arguments":{
+        "rawPrompt":"refactor the auth module to use react hooks and add tests",
+        "reflect":true,
+        "provider":{"kind":"ollama","baseUrl":"http://localhost:11434","model":"llama3.1:8b"}
+      }
+    }
+  }'
+```
+
+HTTP behavior:
+
+- Methods: `tools/list`, `tools/call`, `resources/list`, `resources/read`, `initialize`
+- `OPTIONS /mcp` returns CORS preflight (origin: `*` by default)
+- POST body limit: 256 KiB (returns 413 on overflow)
+- Notifications (no `id`) return 204 with empty body
+
+### MCP server — stdio (Claude Desktop / Claude Code)
+
+```bash
+make dev-mcp-stdio
+# or: pnpm --filter @prompt-forge/mcp start:stdio
+```
+
+Claude Desktop config:
 
 ```json
 {
@@ -50,43 +107,88 @@ per-call (no server-side keys), so you can drive any provider from any client.
 }
 ```
 
-### HTTP (curl example)
+Or, if you've installed the package globally (or via a bin path):
 
-```bash
-curl -s -X POST http://127.0.0.1:8787/mcp \
-  -H 'content-type: application/json' \
-  -d '{
-    "jsonrpc":"2.0","id":1,"method":"tools/call",
-    "params":{
-      "name":"enhance_prompt",
-      "arguments":{
-        "rawPrompt":"refactor the auth module to use hooks",
-        "reflect":true,
-        "provider":{"kind":"ollama","baseUrl":"http://localhost:11434","model":"llama3.1:8b"}
-      }
+```json
+{
+  "mcpServers": {
+    "promptforge": {
+      "command": "node",
+      "args": ["/absolute/path/to/apps/mcp/bin/stdio.mjs"]
     }
-  }'
+  }
+}
 ```
+
+## MCP capabilities
+
+Server advertises `{ tools: {}, resources: {} }`.
+
+### Tool: `enhance_prompt`
+
+Input:
+
+| Field | Type | Required | Notes |
+| --- | --- | --- | --- |
+| `rawPrompt` | string (≥10 chars) | yes | The prompt to rewrite |
+| `provider` | object | yes | `{kind, baseUrl, model, apiKey?, timeoutMs?}` |
+| `taskKind` | enum | no | Override the heuristic classifier |
+| `maxPatterns` | int 1–10 | no | Default 3 |
+| `pinnedSlugs` | string[] | no | Force these patterns into the rewrite |
+| `excludedSlugs` | string[] | no | Exclude these |
+| `reflect` | boolean | no | Run a second LLM pass to revise the draft |
+| `temperature` | number 0–2 | no | Forwarded to the chat call |
+
+Returns text content with the rewritten prompt plus a header line listing
+the inferred taskKind and selected patterns.
+
+### Resources
+
+Each of the 22 catalog patterns is exposed at
+`promptforge://patterns/<slug>` with mime type `text/markdown`. Use
+`resources/list` to enumerate, `resources/read` to fetch the directive.
+
+## Commands
+
+| Command | What it does |
+| --- | --- |
+| `make install` | `pnpm install` |
+| `make dev` | Start the Next.js web app on :3000 |
+| `make dev-mcp-http` | Start MCP HTTP transport on :8787 |
+| `make dev-mcp-stdio` | Start MCP stdio transport |
+| `make test` | Run every package's vitest suite |
+| `make typecheck` | `tsc --noEmit` across the workspace |
+| `make build` | Build all packages and the web app |
+| `make lint` | `biome check .` |
+| `make format` | `biome format --write .` |
+| `make clean` | Wipe node_modules / dist / .next / coverage |
+| `make ci` | install + typecheck + lint + test + build |
 
 ## Repo layout
 
 ```
 prompt-forge/
 ├── apps/
-│   ├── web/        Next.js 15 app (form + /api/enhance)
-│   └── mcp/        MCP server — JSON-RPC handler, stdio + HTTP transports
+│   ├── web/        Next.js 15 app (home + /settings + /api/enhance + /api/providers/test)
+│   └── mcp/        MCP server — JSON-RPC handler, stdio + HTTP transports, body limit, CORS
 ├── packages/
-│   ├── core/       Result type, AppError, Zod schemas
-│   ├── patterns/   Catalog + heuristic classifier + selector
-│   ├── providers/  ProviderClient interface + Ollama + OpenAI-compatible
-│   └── enhancer/   Pipeline: classify → select → chat (→ reflect) → extract
+│   ├── core/       Result, AppError, Zod schemas, structured logger
+│   ├── config/     AppConfig + memory/localStorage stores + pure helpers
+│   ├── patterns/   22-entry catalog + classifier + selector
+│   ├── providers/  ProviderClient: Ollama + OpenAI-compat + native Anthropic
+│   └── enhancer/   Pipeline: classify -> select -> chat -> (optional reflect) -> extract
 └── docs/           Architecture, packages, providers, patterns, TDD strategy
 ```
 
-This is a vertical slice of the full design in `docs/`. Anthropic native client,
-llama.cpp-specific tuning, multi-pattern catalog (22 entries), config persistence,
-and a richer `/settings` page can be added incrementally — each follows the same
-TDD loop documented in [`docs/tdd-strategy.md`](./docs/tdd-strategy.md).
+## Adding a provider
+
+1. Add the kind literal to `ProviderKindSchema` in `packages/core/src/types.ts`.
+2. Create `packages/providers/src/<kind>.ts` exporting
+   `create<Kind>Client(config, fetchImpl?)`.
+3. Route the kind in `packages/providers/src/factory.ts`.
+4. Add a default base URL to `DEFAULT_BASE_URLS`.
+5. Write the test with `scriptedFetch`.
+6. Add the kind to `PROVIDER_KINDS` in `apps/web/src/components/provider-settings.tsx`.
 
 ## License
 
