@@ -17,6 +17,8 @@
     "@prompt-forge/core": "workspace:*",
     "@prompt-forge/enhancer": "workspace:*",
     "@prompt-forge/providers": "workspace:*",
+    "@prompt-forge/repo-gen": "workspace:*",
+    "jszip": "^3.10.1",
     "next": "^15.0.3",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",

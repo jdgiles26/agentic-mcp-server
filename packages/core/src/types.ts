@@ -105,3 +105,20 @@ export const EnhancementResponseSchema = z.object({
   reflected: z.boolean(),
 });
 export type EnhancementResponse = z.infer<typeof EnhancementResponseSchema>;
+
+export const RepoFileSchema = z.object({
+  path: z.string().min(1),
+  content: z.string(),
+});
+export type RepoFile = z.infer<typeof RepoFileSchema>;
+
+export const RepoGenRequestSchema = z.object({
+  objective: z.string().min(20),
+});
+export type RepoGenRequest = z.infer<typeof RepoGenRequestSchema>;
+
+export const RepoGenResponseSchema = z.object({
+  files: z.array(RepoFileSchema),
+  fileCount: z.number().int().nonnegative(),
+});
+export type RepoGenResponse = z.infer<typeof RepoGenResponseSchema>;

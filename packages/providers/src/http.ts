@@ -1,6 +1,6 @@
 import { type AppError, appError, err, ok, type Result } from "@prompt-forge/core";
 
-const DEFAULT_TIMEOUT_MS = 60_000;
+const DEFAULT_TIMEOUT_MS = 300_000;
 
 export type FetchImpl = typeof fetch;
 

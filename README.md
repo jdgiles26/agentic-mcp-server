@@ -5,6 +5,9 @@ Rewrites coding-assistant prompts using strategies from
 Paste a prompt, PromptForge classifies the task, selects the best agentic
 patterns from a catalog of 22, and asks your configured LLM to rewrite it.
 
+Also generates complete project repositories from a plain-language objective —
+paste a goal, get a downloadable `.zip` of a runnable project.
+
 Available as a **web app** and an **MCP server** (stdio + HTTP). Same enhancer
 pipeline behind both surfaces.
 
@@ -50,10 +53,19 @@ Open <http://localhost:3000>.
    endpoint accepts a tiny "ping" chat.
 4. Pick the active provider with the radio.
 5. Back at `/`, paste your raw prompt and click **Rewrite prompt**.
+6. Navigate to `/repo` to generate a full project from an objective.
 
 Config is stored in `localStorage` under the key `promptforge:config` —
 nothing leaves your browser except the chat call to your configured
 provider.
+
+### Repo Generator
+
+Navigate to <http://localhost:3000/repo>. Enter a project objective (e.g.,
+"simple Express.js REST API for todos with TypeScript"), click **Generate**.
+PromptForge sends a single LLM call and parses the returned file blocks into
+a downloadable `.zip`. No server-side storage — generation and zip assembly
+happen in the browser.
 
 ### MCP server — HTTP
 
@@ -156,6 +168,11 @@ Each of the 22 catalog patterns is exposed at
 
 | Command | What it does |
 | --- | --- |
+| `./start.sh` | Start web app (:3000) + MCP HTTP server (:8787) in one shot |
+| `./start.sh --dev` | Same but with `next dev` hot-reload (skips build) |
+| `./start.sh --web-only` | Web app only |
+| `./start.sh --mcp-only` | MCP HTTP server only |
+| `./setup-mcp.sh` | Auto-detect AI coding tools and write MCP config |
 | `make install` | `pnpm install` |
 | `make dev` | Start the Next.js web app on :3000 |
 | `make dev-mcp-http` | Start MCP HTTP transport on :8787 |
@@ -196,15 +213,18 @@ make test-e2e
 ```
 prompt-forge/
 ├── apps/
-│   ├── web/        Next.js 15 app (home + /settings + /api/enhance + /api/providers/test)
+│   ├── web/        Next.js 15 app (/ + /repo + /settings + /api/enhance + /api/repo + /api/providers/test)
 │   └── mcp/        MCP server — JSON-RPC handler, stdio + HTTP transports, body limit, CORS
 ├── packages/
 │   ├── core/       Result, AppError, Zod schemas, structured logger
 │   ├── config/     AppConfig + memory/localStorage stores + pure helpers
 │   ├── patterns/   22-entry catalog + classifier + selector
 │   ├── providers/  ProviderClient: Ollama + OpenAI-compat + native Anthropic
-│   └── enhancer/   Pipeline: classify -> select -> chat -> (optional reflect) -> extract
-└── docs/           Architecture, packages, providers, patterns, TDD strategy
+│   ├── enhancer/   Pipeline: classify -> select -> chat -> (optional reflect) -> extract
+│   └── repo-gen/   Single-pass repo generator: prompt builder + file-block parser
+├── docs/           Architecture, packages, providers, patterns, TDD strategy
+├── start.sh        One-shot launcher: web app + MCP HTTP server
+└── setup-mcp.sh    Auto-detect AI tools and write MCP server config
 ```
 
 ## Adding a provider

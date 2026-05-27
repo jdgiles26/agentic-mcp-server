@@ -12,6 +12,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
       <body>
         <nav className="site-nav">
           <a href="/">Home</a>
+          <a href="/repo">Repo Generator</a>
           <a href="/settings">Settings</a>
         </nav>
         {children}

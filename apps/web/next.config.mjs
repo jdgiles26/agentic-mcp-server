@@ -10,6 +10,7 @@ const nextConfig = {
     "@prompt-forge/core",
     "@prompt-forge/enhancer",
     "@prompt-forge/providers",
+    "@prompt-forge/repo-gen",
   ],
   webpack(config) {
     config.resolve = config.resolve ?? {};

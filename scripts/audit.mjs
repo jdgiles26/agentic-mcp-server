@@ -127,10 +127,17 @@ for (const ws of workspaces) {
     const imported = new Set();
     for (const f of files) {
       for (const line of readLines(f)) {
+        // static: from "pkg" or from 'pkg'
         const m = line.match(/from\s+["']([^"'.][^"']*)["']/);
         if (m)
           imported.add(
             m[1].startsWith("@") ? m[1].split("/").slice(0, 2).join("/") : m[1].split("/")[0],
+          );
+        // dynamic: import("pkg") or import('pkg')
+        const d = line.match(/import\s*\(\s*["']([^"'.][^"']*)["']/);
+        if (d)
+          imported.add(
+            d[1].startsWith("@") ? d[1].split("/").slice(0, 2).join("/") : d[1].split("/")[0],
           );
       }
     }

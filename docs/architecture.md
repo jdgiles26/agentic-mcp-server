@@ -35,6 +35,33 @@ sequenceDiagram
   Web-->>User: rendered enhanced prompt
 ```
 
+## Request flow — Repo Generator
+
+```mermaid
+sequenceDiagram
+  participant User
+  participant Web as Next.js (Client Component)
+  participant API as /api/repo (Route Handler)
+  participant RepoGen as @prompt-forge/repo-gen
+  participant Provider as @prompt-forge/providers
+  participant LLM
+
+  User->>Web: enter objective, submit
+  Web->>API: POST /api/repo { objective, provider }
+  API->>API: Zod validation (RepoGenRequestSchema + ProviderConfigSchema)
+  API->>Provider: createProviderClient(providerConfig)
+  API->>RepoGen: generateRepo(client, { objective })
+  RepoGen->>Provider: client.chat(buildRepoPrompt(objective))
+  Provider->>LLM: single chat call
+  LLM-->>Provider: file blocks in <<<FILE:path>>> format
+  Provider-->>RepoGen: Result<ChatResponse>
+  RepoGen->>RepoGen: parseFileContents(output) — strips <think>, regex parse
+  RepoGen-->>API: Result<{ files, fileCount }>
+  API-->>Web: JSON { files: [{path,content}], fileCount }
+  Web->>Web: import("jszip") — lazy load, build zip in browser
+  Web-->>User: download project.zip
+```
+
 ## Request flow — MCP
 
 ```mermaid
@@ -99,6 +126,7 @@ graph TD
   web --> config
   web --> enhancer
   web --> providers
+  web --> repo-gen
 
   mcp[apps/mcp] --> core
   mcp --> enhancer
@@ -109,12 +137,15 @@ graph TD
   enhancer --> patterns
   enhancer --> providers
 
+  repo-gen --> core
+  repo-gen --> providers
+
   patterns --> core
   providers --> core
   config --> core
 ```
 
-`core` is the only package no other package depends on for its own dependencies — every other package imports types and the `Result` helpers from it. `apps/web` does **not** import `patterns` directly; the enhancer is the only caller of the pattern catalog from the web surface. `apps/mcp` imports `patterns` directly because `resources/list` and `resources/read` enumerate the catalog without going through the enhancer.
+`core` is the only package no other package depends on for its own dependencies — every other package imports types and the `Result` helpers from it. `apps/web` does **not** import `patterns` directly; the enhancer is the only caller of the pattern catalog from the web surface. `apps/mcp` imports `patterns` directly because `resources/list` and `resources/read` enumerate the catalog without going through the enhancer. `repo-gen` depends on `providers` for the `ProviderClient` interface and on `core` for `Result`/`AppError` — it has no dependency on `patterns` or `enhancer`.
 
 ## Why this shape
 
